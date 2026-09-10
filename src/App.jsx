@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
+import EmojiPicker from "emoji-picker-react";
 import "./App.css";
 
 const API_URL = "http://localhost:5000/api";
@@ -192,6 +193,7 @@ function LoginPage({ setPage, setCurrentUser }) {
 
 function SignupPage({ setPage, setCurrentUser }) {
   const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -202,8 +204,28 @@ function SignupPage({ setPage, setCurrentUser }) {
   async function handleSignup() {
     setError("");
 
-    if (!name || !email || !password || !confirmPassword) {
+    if (
+      !name ||
+      !username ||
+      !email ||
+      !password ||
+      !confirmPassword
+    ) {
       setError("Please fill all fields.");
+      return;
+    }
+
+    const cleanUsername = username.trim().toLowerCase();
+
+    if (!/^[a-zA-Z0-9_.]+$/.test(cleanUsername)) {
+      setError(
+        "Username can contain only letters, numbers, underscore and dot."
+      );
+      return;
+    }
+
+    if (cleanUsername.length < 3 || cleanUsername.length > 30) {
+      setError("Username must be between 3 and 30 characters.");
       return;
     }
 
@@ -222,6 +244,7 @@ function SignupPage({ setPage, setCurrentUser }) {
         },
         body: JSON.stringify({
           name,
+          username: cleanUsername,
           email,
           password,
         }),
@@ -267,6 +290,28 @@ function SignupPage({ setPage, setCurrentUser }) {
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
+
+          <label>Username</label>
+
+          <input
+            type="text"
+            placeholder="Choose a unique username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            maxLength={30}
+            autoComplete="username"
+          />
+
+          <p
+            style={{
+              color: "#94a3b8",
+              fontSize: "12px",
+              marginTop: "-6px",
+              marginBottom: "14px",
+            }}
+          >
+            Letters, numbers, underscore and dot only.
+          </p>
 
           <label>Email</label>
 
@@ -347,6 +392,7 @@ function ChatPage({
 
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const [messages, setMessages] = useState([]);
 
@@ -361,6 +407,11 @@ function ChatPage({
   const [typingUserId, setTypingUserId] = useState(null);
 
   const [unreadCounts, setUnreadCounts] = useState({});
+  const [notificationEnabled, setNotificationEnabled] = useState(
+    typeof window !== "undefined" && "Notification" in window
+      ? Notification.permission === "granted"
+      : false
+  );
 
   const socketRef = useRef(null);
 
@@ -374,6 +425,19 @@ function ChatPage({
   */
   const messagesEndRef = useRef(null);
 
+  const [showProfile, setShowProfile] = useState(false);
+  const [profileName, setProfileName] = useState(
+    currentUser?.name || ""
+  );
+  const [profileUsername, setProfileUsername] = useState(
+    currentUser?.username || ""
+  );
+  const [profilePhoto, setProfilePhoto] = useState(
+    currentUser?.photo || ""
+  );
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState("");
+
   const currentUserId = String(
     currentUser?.id || currentUser?._id || ""
   );
@@ -383,6 +447,32 @@ function ChatPage({
       selectedUser?._id ||
       ""
   );
+
+  /* =====================================================
+     BROWSER NOTIFICATIONS
+  ===================================================== */
+
+  async function enableNotifications() {
+    if (!("Notification" in window)) {
+      setError("This browser does not support notifications.");
+      return;
+    }
+
+    try {
+      const permission = await Notification.requestPermission();
+      setNotificationEnabled(permission === "granted");
+    } catch (error) {
+      console.error("Notification permission error:", error);
+    }
+  }
+
+  useEffect(() => {
+    if (!("Notification" in window)) {
+      return;
+    }
+
+    setNotificationEnabled(Notification.permission === "granted");
+  }, []);
 
   /* =====================================================
      KEEP CURRENT SELECTED USER IN REF
@@ -598,6 +688,32 @@ function ChatPage({
            DIFFERENT CHAT
         ================================= */
 
+        if (
+          typeof window !== "undefined" &&
+          "Notification" in window &&
+          Notification.permission === "granted" &&
+          typeof document !== "undefined" &&
+          document.visibilityState !== "visible"
+        ) {
+          const sender = users.find(
+            (user) =>
+              String(user.id || user._id) === senderId
+          );
+
+          try {
+            new Notification(
+              sender?.name || "New message",
+              {
+                body: newMessage.text,
+                icon: sender?.photo || undefined,
+                tag: `message-${senderId}`,
+              }
+            );
+          } catch (error) {
+            console.error("Browser notification error:", error);
+          }
+        }
+
         setUnreadCounts(
           (previous) => ({
             ...previous,
@@ -642,6 +758,23 @@ function ChatPage({
                 };
               }
             )
+        );
+      }
+    );
+
+    /* ================================
+       MESSAGE DELETED
+    ================================= */
+
+    socket.on(
+      "messageDeleted",
+      ({ messageId }) => {
+        const deletedId = String(messageId);
+
+        setMessages((previousMessages) =>
+          previousMessages.filter(
+            (msg) => String(msg.id) !== deletedId
+          )
         );
       }
     );
@@ -1052,13 +1185,18 @@ function ChatPage({
   }, []);
 
   /* =====================================================
-     LOAD MESSAGES
+     LOAD MESSAGES + LIVE MESSAGE SYNC
   ===================================================== */
 
   useEffect(() => {
     if (!selectedUserId) {
       return;
     }
+
+    let cancelled = false;
+    let intervalId = null;
+    let firstLoad = true;
+    let lastServerSignature = null;
 
     async function loadMessages() {
       const token =
@@ -1070,11 +1208,11 @@ function ChatPage({
         return;
       }
 
-      setLoadingMessages(
-        true
-      );
-
       try {
+        if (firstLoad) {
+          setLoadingMessages(true);
+        }
+
         const response =
           await fetch(
             `${API_URL}/messages/${selectedUserId}`,
@@ -1091,32 +1229,146 @@ function ChatPage({
 
         if (!response.ok) {
           throw new Error(
-            data.message
+            data.message ||
+              "Could not load messages."
           );
         }
 
-        setMessages(
-          data.messages || []
-        );
+        if (cancelled) {
+          return;
+        }
 
-        await markConversationAsRead(
-          selectedUserId
-        );
+        const serverMessages =
+          data.messages || [];
+
+        const serverSignature =
+          serverMessages
+            .map((msg) =>
+              [
+                String(
+                  msg.id || msg._id || ""
+                ),
+                msg.text || "",
+                Boolean(msg.read),
+                msg.readAt || "",
+                msg.createdAt || "",
+              ].join("|")
+            )
+            .join("||");
+
+        const hasChanged =
+          lastServerSignature !==
+          serverSignature;
+
+        if (hasChanged) {
+          lastServerSignature =
+            serverSignature;
+
+          /*
+            This update triggers the existing auto-scroll
+            effect, so a newly received message is shown
+            automatically at the bottom.
+          */
+          setMessages(serverMessages);
+
+          await markConversationAsRead(
+            selectedUserId
+          );
+        }
       } catch (error) {
-        console.error(error);
+        console.error(
+          "Load messages error:",
+          error
+        );
 
-        setError(
-          "Could not load messages."
-        );
+        if (firstLoad && !cancelled) {
+          setError(
+            "Could not load messages."
+          );
+        }
       } finally {
-        setLoadingMessages(
-          false
-        );
+        if (firstLoad && !cancelled) {
+          setLoadingMessages(false);
+        }
       }
+
+      firstLoad = false;
     }
 
+    /* Load immediately. */
     loadMessages();
+
+    /*
+      Check once every second so incoming messages
+      appear without refreshing the page.
+    */
+    intervalId = setInterval(
+      loadMessages,
+      1000
+    );
+
+    return () => {
+      cancelled = true;
+
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
   }, [selectedUserId]);
+
+
+  /* =====================================================
+     DELETE MESSAGE
+  ===================================================== */
+
+  async function deleteMessage(messageId) {
+    if (!messageId) {
+      return;
+    }
+
+    const shouldDelete = window.confirm(
+      "Delete this message?"
+    );
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    const token = sessionStorage.getItem("token");
+
+    if (!token) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${API_URL}/messages/message/${messageId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Could not delete message."
+        );
+      }
+
+      setMessages((previousMessages) =>
+        previousMessages.filter(
+          (msg) => String(msg.id) !== String(messageId)
+        )
+      );
+    } catch (error) {
+      console.error("Delete message error:", error);
+      setError(error.message || "Could not delete message.");
+    }
+  }
 
   /* =====================================================
      SEND MESSAGE
@@ -1363,6 +1615,200 @@ function ChatPage({
   }
 
   /* =====================================================
+     PROFILE
+  ===================================================== */
+
+  function openProfile() {
+    setProfileName(currentUser?.name || "");
+    setProfileUsername(currentUser?.username || "");
+    setProfilePhoto(currentUser?.photo || "");
+    setProfileError("");
+    setShowProfile(true);
+  }
+
+  function closeProfile() {
+    if (profileSaving) return;
+
+    setShowProfile(false);
+    setProfileError("");
+  }
+
+  async function handleProfilePhoto(event) {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setProfileError("Please select an image file.");
+      return;
+    }
+
+    if (file.size > 8 * 1024 * 1024) {
+      setProfileError("Photo must be smaller than 8 MB.");
+      return;
+    }
+
+    try {
+      const compressedPhoto = await new Promise(
+        (resolve, reject) => {
+          const reader = new FileReader();
+
+          reader.onload = () => {
+            const image = new Image();
+
+            image.onload = () => {
+              const maxSize = 500;
+
+              let width = image.width;
+              let height = image.height;
+
+              if (width > height && width > maxSize) {
+                height = Math.round(
+                  (height * maxSize) / width
+                );
+                width = maxSize;
+              } else if (height >= width && height > maxSize) {
+                width = Math.round(
+                  (width * maxSize) / height
+                );
+                height = maxSize;
+              }
+
+              const canvas = document.createElement("canvas");
+              canvas.width = width;
+              canvas.height = height;
+
+              const context = canvas.getContext("2d");
+
+              if (!context) {
+                reject(new Error("Could not process image."));
+                return;
+              }
+
+              context.drawImage(
+                image,
+                0,
+                0,
+                width,
+                height
+              );
+
+              resolve(
+                canvas.toDataURL("image/jpeg", 0.8)
+              );
+            };
+
+            image.onerror = () =>
+              reject(new Error("Could not read image."));
+
+            image.src = reader.result;
+          };
+
+          reader.onerror = () =>
+            reject(new Error("Could not read file."));
+
+          reader.readAsDataURL(file);
+        }
+      );
+
+      setProfilePhoto(compressedPhoto);
+      setProfileError("");
+    } catch (error) {
+      console.error(error);
+      setProfileError("Could not load this photo.");
+    }
+
+    event.target.value = "";
+  }
+
+  async function saveProfile() {
+    const token = sessionStorage.getItem("token");
+
+    if (!token) return;
+
+    const cleanName = profileName.trim();
+    const cleanUsername =
+      profileUsername.trim().toLowerCase();
+
+    if (!cleanName) {
+      setProfileError("Name cannot be empty.");
+      return;
+    }
+
+    if (!cleanUsername) {
+      setProfileError("Username cannot be empty.");
+      return;
+    }
+
+    if (!/^[a-zA-Z0-9_.]+$/.test(cleanUsername)) {
+      setProfileError(
+        "Username can contain only letters, numbers, underscore and dot."
+      );
+      return;
+    }
+
+    if (
+      cleanUsername.length < 3 ||
+      cleanUsername.length > 30
+    ) {
+      setProfileError(
+        "Username must be between 3 and 30 characters."
+      );
+      return;
+    }
+
+    setProfileSaving(true);
+    setProfileError("");
+
+    try {
+      const response = await fetch(
+        `${API_URL}/auth/profile`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            name: cleanName,
+            username: cleanUsername,
+            photo: profilePhoto || "",
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Could not update profile."
+        );
+      }
+
+      const updatedUser = data.user;
+
+      setCurrentUser(updatedUser);
+
+      sessionStorage.setItem(
+        "user",
+        JSON.stringify(updatedUser)
+      );
+
+      setProfileName(updatedUser.name || "");
+      setProfileUsername(updatedUser.username || "");
+      setProfilePhoto(updatedUser.photo || "");
+      setShowProfile(false);
+    } catch (error) {
+      console.error(error);
+      setProfileError(
+        error.message || "Could not update profile."
+      );
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
+  /* =====================================================
      LOGOUT
   ===================================================== */
 
@@ -1405,13 +1851,14 @@ function ChatPage({
   ===================================================== */
 
   const filteredUsers =
-    users.filter((user) =>
-      user.name
-        .toLowerCase()
-        .includes(
-          search.toLowerCase()
-        )
-    );
+    users.filter((user) => {
+      const query = search.toLowerCase();
+
+      return (
+        user.name?.toLowerCase().includes(query) ||
+        user.username?.toLowerCase().includes(query)
+      );
+    });
 
   /* =====================================================
      LOADING
@@ -1532,10 +1979,23 @@ function ChatPage({
 
                     <div className="avatar">
 
-                      {user.initial ||
+                      {user.photo ? (
+                        <img
+                          src={user.photo}
+                          alt={user.name}
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            borderRadius: "50%",
+                            objectFit: "cover",
+                          }}
+                        />
+                      ) : (
+                        user.initial ||
                         user.name
                           .charAt(0)
-                          .toUpperCase()}
+                          .toUpperCase()
+                      )}
 
                       {user.online && (
                         <span className="online-dot"></span>
@@ -1582,8 +2042,10 @@ function ChatPage({
                               "nowrap",
                           }}
                         >
-                          {user.lastMessage ||
-                            "Start a conversation"}
+                          {user.username
+                            ? `@${user.username}`
+                            : user.lastMessage ||
+                              "Start a conversation"}
                         </p>
 
                         {unread >
@@ -1647,15 +2109,34 @@ function ChatPage({
             PROFILE
         ================================================= */}
 
-        <div className="profile">
+        <div
+          className="profile"
+          onClick={openProfile}
+          style={{
+            cursor: "pointer",
+          }}
+        >
 
           <div className="avatar small">
 
-            {currentUser?.name
-              ? currentUser.name
-                  .charAt(0)
-                  .toUpperCase()
-              : "U"}
+            {currentUser?.photo ? (
+              <img
+                src={currentUser.photo}
+                alt={currentUser.name}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  borderRadius: "50%",
+                  objectFit: "cover",
+                }}
+              />
+            ) : (
+              currentUser?.name
+                ? currentUser.name
+                    .charAt(0)
+                    .toUpperCase()
+                : "U"
+            )}
 
             {showOnline && (
               <span className="online-dot"></span>
@@ -1730,9 +2211,10 @@ function ChatPage({
 
           <button
             className="logout-btn"
-            onClick={
-              logout
-            }
+            onClick={(event) => {
+              event.stopPropagation();
+              logout();
+            }}
           >
             Logout
           </button>
@@ -1832,6 +2314,9 @@ function ChatPage({
                     <div
                       key={msg.id}
                       className={`message ${msg.type}`}
+                      style={{
+                        position: "relative",
+                      }}
                     >
 
                       <p>
@@ -1853,6 +2338,24 @@ function ChatPage({
                         )}
 
                       </span>
+
+                      {msg.type === "sent" && (
+                        <button
+                          type="button"
+                          onClick={() => deleteMessage(msg.id)}
+                          title="Delete message"
+                          style={{
+                            marginLeft: "8px",
+                            border: "none",
+                            background: "transparent",
+                            cursor: "pointer",
+                            fontSize: "12px",
+                            opacity: 0.65,
+                          }}
+                        >
+                          🗑️
+                        </button>
+                      )}
 
                     </div>
 
@@ -1878,13 +2381,54 @@ function ChatPage({
                 INPUT
             ================================================= */}
 
-            <div className="message-input">
+            <div
+              className="message-input"
+              style={{ position: "relative" }}
+            >
+
+              {showEmojiPicker && (
+                <div
+                  style={{
+                    position: "absolute",
+                    bottom: "65px",
+                    left: "0",
+                    zIndex: 9999,
+                  }}
+                >
+                  <EmojiPicker
+                    theme="dark"
+                    width={320}
+                    height={400}
+                    onEmojiClick={(emojiObject) => {
+                      setMessage((previous) =>
+                        previous + emojiObject.emoji
+                      );
+                    }}
+                  />
+                </div>
+              )}
 
               <button
                 type="button"
                 className="input-action"
+                onClick={() =>
+                  setShowEmojiPicker((previous) => !previous)
+                }
               >
                 😊
+              </button>
+
+              <button
+                type="button"
+                className="input-action"
+                onClick={enableNotifications}
+                title={
+                  notificationEnabled
+                    ? "Notifications enabled"
+                    : "Enable notifications"
+                }
+              >
+                {notificationEnabled ? "🔔" : "🔕"}
               </button>
 
               <button
@@ -1950,6 +2494,267 @@ function ChatPage({
 
       </main>
 
+      {/* =================================================
+          PROFILE MODAL
+      ================================================= */}
+
+      {showProfile && (
+        <div
+          onClick={closeProfile}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.72)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "20px",
+          }}
+        >
+          <div
+            onClick={(event) =>
+              event.stopPropagation()
+            }
+            style={{
+              width: "100%",
+              maxWidth: "430px",
+              background: "#171923",
+              border: "1px solid #2b2f3d",
+              borderRadius: "18px",
+              padding: "28px",
+              boxShadow:
+                "0 20px 60px rgba(0,0,0,0.5)",
+              boxSizing: "border-box",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "24px",
+              }}
+            >
+              <h2
+                style={{
+                  margin: 0,
+                  color: "#fff",
+                }}
+              >
+                My Profile
+              </h2>
+
+              <button
+                type="button"
+                onClick={closeProfile}
+                disabled={profileSaving}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "#cbd5e1",
+                  fontSize: "24px",
+                  cursor: "pointer",
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* PROFILE PHOTO */}
+
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                marginBottom: "24px",
+              }}
+            >
+              <label
+                style={{
+                  width: "110px",
+                  height: "110px",
+                  borderRadius: "50%",
+                  background: "#6366f1",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  overflow: "hidden",
+                  cursor: "pointer",
+                  border: "3px solid #818cf8",
+                }}
+                title="Change profile photo"
+              >
+                {profilePhoto ? (
+                  <img
+                    src={profilePhoto}
+                    alt="Profile"
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                    }}
+                  />
+                ) : (
+                  <span
+                    style={{
+                      color: "#fff",
+                      fontSize: "40px",
+                      fontWeight: "700",
+                    }}
+                  >
+                    {profileName
+                      ? profileName
+                          .charAt(0)
+                          .toUpperCase()
+                      : "U"}
+                  </span>
+                )}
+
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleProfilePhoto}
+                  style={{
+                    display: "none",
+                  }}
+                />
+              </label>
+
+              <p
+                style={{
+                  color: "#94a3b8",
+                  fontSize: "12px",
+                  marginTop: "10px",
+                  marginBottom: 0,
+                }}
+              >
+                Click photo to change
+              </p>
+            </div>
+
+            {/* NAME */}
+
+            <label
+              style={{
+                display: "block",
+                color: "#e2e8f0",
+                fontSize: "14px",
+                marginBottom: "7px",
+              }}
+            >
+              Full Name
+            </label>
+
+            <input
+              type="text"
+              value={profileName}
+              onChange={(event) =>
+                setProfileName(event.target.value)
+              }
+              disabled={profileSaving}
+              maxLength={50}
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                marginBottom: "18px",
+              }}
+            />
+
+            {/* USERNAME */}
+
+            <label
+              style={{
+                display: "block",
+                color: "#e2e8f0",
+                fontSize: "14px",
+                marginBottom: "7px",
+              }}
+            >
+              Username
+            </label>
+
+            <input
+              type="text"
+              value={profileUsername}
+              onChange={(event) =>
+                setProfileUsername(
+                  event.target.value
+                )
+              }
+              disabled={profileSaving}
+              maxLength={30}
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                marginBottom: "7px",
+              }}
+            />
+
+            <p
+              style={{
+                color: "#94a3b8",
+                fontSize: "12px",
+                marginTop: 0,
+                marginBottom: "18px",
+              }}
+            >
+              Only letters, numbers, underscore and dot.
+            </p>
+
+            {profileError && (
+              <p
+                style={{
+                  color: "#ef4444",
+                  fontSize: "13px",
+                  marginBottom: "14px",
+                }}
+              >
+                {profileError}
+              </p>
+            )}
+
+            <div
+              style={{
+                display: "flex",
+                gap: "10px",
+              }}
+            >
+              <button
+                type="button"
+                onClick={closeProfile}
+                disabled={profileSaving}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  borderRadius: "10px",
+                  border: "1px solid #303545",
+                  background: "transparent",
+                  color: "#fff",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={saveProfile}
+                disabled={profileSaving}
+                className="primary-btn"
+                style={{
+                  flex: 1,
+                }}
+              >
+                {profileSaving
+                  ? "Saving..."
+                  : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
