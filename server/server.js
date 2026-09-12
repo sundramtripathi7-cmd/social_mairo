@@ -30,7 +30,6 @@ const server = http.createServer(app);
 /* =====================================================
    CORS
 ===================================================== */
-
 const allowedOrigins = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
@@ -42,6 +41,7 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: function (origin, callback) {
+      // Allow requests without Origin
       if (!origin) {
         return callback(null, true);
       }
@@ -73,8 +73,6 @@ app.use(
     optionsSuccessStatus: 204,
   })
 );
-
-app.options("*", cors());
 
 /* =====================================================
    BODY PARSER
