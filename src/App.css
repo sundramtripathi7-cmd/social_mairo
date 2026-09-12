@@ -1650,3 +1650,149 @@ select {
     padding: 7px 8px;
   }
 }
+
+/* =========================================
+   ANDROID KEYBOARD — FINAL FIX
+========================================= */
+
+@media (max-width: 700px) {
+
+  html,
+  body,
+  #root {
+    width: 100%;
+    height: 100%;
+    min-height: 100%;
+    margin: 0;
+    overflow: hidden;
+  }
+
+  .app {
+    width: 100%;
+    height: 100%;
+    min-height: 100%;
+    overflow: hidden;
+  }
+
+  .chat-app {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+
+    width: 100%;
+    height: 100dvh;
+    min-height: 0;
+
+    overflow: hidden;
+  }
+
+  /* =========================
+     CHAT AREA
+  ========================= */
+
+  .chat-area {
+    position: fixed;
+
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+
+    width: 100%;
+    height: 100dvh;
+    min-height: 0;
+
+    display: none;
+    flex-direction: column;
+
+    overflow: hidden;
+
+    transform: none;
+  }
+
+  .chat-app.chat-open .chat-area {
+    display: flex;
+  }
+
+  /* =========================
+     HEADER — NEVER SCROLLS
+  ========================= */
+
+  .chat-header {
+    position: relative;
+
+    flex: 0 0 64px;
+
+    width: 100%;
+    height: 64px;
+    min-height: 64px;
+
+    z-index: 20;
+
+    overflow: hidden;
+  }
+
+  /* =========================
+     ONLY MESSAGES SCROLL
+  ========================= */
+
+  .messages {
+    position: relative;
+
+    flex: 1 1 auto;
+    min-height: 0;
+
+    width: 100%;
+
+    overflow-y: auto;
+    overflow-x: hidden;
+
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  /* =========================
+     INPUT — STAYS ABOVE KEYBOARD
+  ========================= */
+
+  .message-input {
+    position: relative;
+
+    flex: 0 0 auto;
+
+    width: 100%;
+    min-height: 64px;
+
+    z-index: 20;
+
+    padding: 8px 10px;
+
+    overflow: visible;
+  }
+
+  .message-input input,
+  .message-input textarea {
+    min-width: 0;
+    flex: 1;
+  }
+}
+
+
+/* =========================================
+   SMALL PHONE
+========================================= */
+
+@media (max-width: 480px) {
+
+  .chat-header {
+    flex-basis: 60px;
+    height: 60px;
+    min-height: 60px;
+  }
+
+  .message-input {
+    min-height: 60px;
+  }
+}

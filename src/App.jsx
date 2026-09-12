@@ -2686,9 +2686,7 @@ function ChatPage({
                 onKeyDown={
                   handleKeyDown
                 }
-                disabled={
-                  sending
-                }
+                
               />
 
               <button
