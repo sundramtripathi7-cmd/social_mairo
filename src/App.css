@@ -2392,3 +2392,377 @@ textarea {
       0.6rem;
   }
 }
+
+/* =========================================================
+   FINAL MOBILE CHAT FIX
+   Fixes:
+   1. Header disappearing with keyboard
+   2. Message input disappearing
+   3. Mobile viewport resizing/panning
+   4. Oversized chat avatar
+   5. Excessive message spacing
+   ========================================================= */
+
+@media (max-width: 50rem) {
+
+  html,
+  body,
+  #root {
+    width: 100%;
+    height: 100%;
+    min-height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  body {
+    position: fixed;
+    inset: 0;
+  }
+
+  .app {
+    width: 100%;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* ================= CHAT APP ================= */
+
+  .chat-app {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100dvh;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* ================= CHAT LIST ================= */
+
+  .chat-app:not(.chat-open) .sidebar {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .chat-app:not(.chat-open) .chat-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ================= OPEN CHAT ================= */
+
+  .chat-app.chat-open .sidebar {
+    display: none;
+  }
+
+  .chat-app.chat-open .chat-area {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100dvh;
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transform: none;
+  }
+
+  /* ================= CHAT HEADER ================= */
+
+  .chat-app.chat-open .chat-header {
+    position: relative;
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    height: clamp(3.75rem, 9dvh, 4.5rem);
+    min-height: 3.75rem;
+    padding: 0 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    overflow: hidden;
+    z-index: 20;
+    background: #151821;
+    border-bottom: 1px solid var(--border, #292e3b);
+  }
+
+  /* Back button */
+  .chat-app.chat-open .mobile-back-btn {
+    display: flex;
+    flex: 0 0 auto;
+    width: 2.5rem;
+    height: 2.5rem;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: #ffffff;
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .chat-app.chat-open .mobile-back-btn:active {
+    background: #222631;
+    transform: scale(0.94);
+  }
+
+  /* Compact header avatar */
+  .chat-app.chat-open .chat-header .avatar {
+    flex: 0 0 auto;
+    width: 2.75rem;
+    height: 2.75rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    border-radius: 50%;
+    font-size: 1rem;
+  }
+
+  /* Header username/status */
+  .chat-app.chat-open .chat-header > div {
+    min-width: 0;
+  }
+
+  .chat-app.chat-open .chat-header > div:nth-child(2) {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .chat-app.chat-open .chat-header strong {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 0.95rem;
+  }
+
+  .chat-app.chat-open .chat-header p {
+    margin: 0.15rem 0 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 0.72rem;
+  }
+
+  /* Header buttons */
+  .chat-app.chat-open .header-actions {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+    margin-left: auto;
+  }
+
+  .chat-app.chat-open .header-actions button {
+    width: 2.4rem;
+    height: 2.4rem;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ================= MESSAGES ================= */
+
+  .chat-app.chat-open .messages {
+    position: relative;
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    box-sizing: border-box;
+    padding: 0.8rem 0.7rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    scroll-behavior: smooth;
+  }
+
+  /* Smaller Today badge */
+  .chat-app.chat-open .today {
+    margin: 0 auto 0.75rem;
+  }
+
+  /* Compact message bubbles */
+  .chat-app.chat-open .message {
+    max-width: min(76%, 28rem);
+    margin-bottom: 0.45rem;
+    padding: 0.55rem 0.7rem;
+    border-radius: 0.85rem;
+  }
+
+  .chat-app.chat-open .message p {
+    margin: 0;
+    font-size: 0.88rem;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+  }
+
+  .chat-app.chat-open .message span {
+    margin-top: 0.2rem;
+    font-size: 0.62rem;
+    line-height: 1;
+  }
+
+  /* ================= MESSAGE INPUT ================= */
+
+  .chat-app.chat-open .message-input {
+    position: relative;
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    min-height: 4rem;
+    box-sizing: border-box;
+    padding: 0.5rem 0.55rem;
+    padding-bottom: max(
+      0.5rem,
+      env(safe-area-inset-bottom)
+    );
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    z-index: 30;
+    background: #151821;
+    border-top: 1px solid var(--border, #292e3b);
+  }
+
+  .chat-app.chat-open .message-input .input-action {
+    flex: 0 0 auto;
+    width: 2.35rem;
+    height: 2.35rem;
+    min-width: 2.35rem;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .chat-app.chat-open .message-input input {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+    height: 2.6rem;
+    box-sizing: border-box;
+    padding: 0 0.75rem;
+    font-size: 0.9rem;
+  }
+
+  .chat-app.chat-open .message-input .send-btn {
+    flex: 0 0 auto;
+    width: 2.6rem;
+    height: 2.6rem;
+    min-width: 2.6rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Emoji picker stays above input */
+  .chat-app.chat-open .message-input > div {
+    max-width: 90%;
+  }
+}
+
+/* =========================================================
+   SMALL PHONES
+   ========================================================= */
+
+@media (max-width: 30rem) {
+
+  .chat-app.chat-open .chat-header {
+    height: 3.65rem;
+    min-height: 3.65rem;
+    padding: 0 0.5rem;
+    gap: 0.45rem;
+  }
+
+  .chat-app.chat-open .mobile-back-btn {
+    width: 2.25rem;
+    height: 2.25rem;
+    font-size: 1.35rem;
+  }
+
+  .chat-app.chat-open .chat-header .avatar {
+    width: 2.45rem;
+    height: 2.45rem;
+    min-width: 2.45rem;
+    min-height: 2.45rem;
+    font-size: 0.9rem;
+  }
+
+  .chat-app.chat-open .chat-header strong {
+    font-size: 0.88rem;
+  }
+
+  .chat-app.chat-open .chat-header p {
+    font-size: 0.66rem;
+  }
+
+  .chat-app.chat-open .header-actions button {
+    width: 2.15rem;
+    height: 2.15rem;
+  }
+
+  .chat-app.chat-open .messages {
+    padding: 0.65rem 0.5rem;
+  }
+
+  .chat-app.chat-open .message {
+    max-width: 82%;
+    padding: 0.5rem 0.65rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .chat-app.chat-open .message p {
+    font-size: 0.84rem;
+  }
+
+  .chat-app.chat-open .message-input {
+    min-height: 3.7rem;
+    padding: 0.4rem 0.4rem;
+    padding-bottom: max(
+      0.4rem,
+      env(safe-area-inset-bottom)
+    );
+  }
+
+  .chat-app.chat-open .message-input .input-action {
+    width: 2.15rem;
+    height: 2.15rem;
+    min-width: 2.15rem;
+    font-size: 1rem;
+  }
+
+  .chat-app.chat-open .message-input input {
+    height: 2.4rem;
+    font-size: 0.84rem;
+  }
+
+  .chat-app.chat-open .message-input .send-btn {
+    width: 2.4rem;
+    height: 2.4rem;
+    min-width: 2.4rem;
+  }
+}
