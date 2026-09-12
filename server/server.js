@@ -36,13 +36,12 @@ const allowedOrigins = [
   "http://127.0.0.1:5173",
   "http://localhost:5174",
   "http://127.0.0.1:5174",
+  "https://social-mairo.vercel.app",
 ];
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests without an Origin
-      // such as curl/Postman/server-side requests.
       if (!origin) {
         return callback(null, true);
       }
@@ -52,15 +51,30 @@ app.use(
       }
 
       console.log("Blocked CORS origin:", origin);
-
-      return callback(
-        new Error("Not allowed by CORS")
-      );
+      return callback(new Error("Not allowed by CORS"));
     },
 
     credentials: true,
+
+    methods: [
+      "GET",
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE",
+      "OPTIONS",
+    ],
+
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+    ],
+
+    optionsSuccessStatus: 204,
   })
 );
+
+app.options("*", cors());
 
 /* =====================================================
    BODY PARSER
@@ -86,7 +100,14 @@ app.use(
 const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
-    methods: ["GET", "POST", "PATCH", "PUT", "DELETE"],
+    methods: [
+      "GET",
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE",
+      "OPTIONS",
+    ],
     credentials: true,
   },
 });
