@@ -1353,18 +1353,9 @@ function ChatPage({
           await response.json();
 
         if (!response.ok) {
-          if (
-            response.status ===
-            401
-          ) {
-            logout();
-            return;
-          }
+  throw new Error(data.message || "Could not load users.");
+}
 
-          throw new Error(
-            data.message
-          );
-        }
 
         const loadedUsers =
           (data.users || []).map(
