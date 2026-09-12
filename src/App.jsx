@@ -740,7 +740,7 @@ function ChatPage({
   const [onlineUsers, setOnlineUsers] = useState([]);
 
   const [typingUserId, setTypingUserId] = useState(null);
-
+  const messageInputRef = useRef(null);  //new
   const [unreadCounts, setUnreadCounts] = useState({});
   const [notificationEnabled, setNotificationEnabled] = useState(
     typeof window !== "undefined" && "Notification" in window
@@ -1850,6 +1850,10 @@ function ChatPage({
       );
 
       setMessage("");
+      setTimeout(() => {
+      messageInputRef.current?.focus();
+        }, 0);
+
     } catch (error) {
       console.error(error);
 
@@ -2677,6 +2681,7 @@ function ChatPage({
               </button>
 
               <input
+                ref={messageInputRef}
                 type="text"
                  placeholder={`Message @${selectedUser.username}...`}
                 value={message}
