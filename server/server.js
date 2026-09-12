@@ -35,9 +35,10 @@ const allowedOrigins = [
   "http://127.0.0.1:5173",
   "http://localhost:5174",
   "http://127.0.0.1:5174",
-  "https://social-mairo.vercel.app",
-];
 
+  "https://social-mairo.vercel.app",
+  "https://social-mairo-git-main-sundramtripathi7-cmds-projects.vercel.app",
+];
 app.use(
   cors({
     origin: function (origin, callback) {
