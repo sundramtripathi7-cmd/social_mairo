@@ -786,6 +786,47 @@ function ChatPage({
       ""
   );
 
+  useEffect(() => {
+  function handleBrowserBack() {
+    const currentSelectedUser =
+      selectedUserRef.current;
+
+    if (currentSelectedUser) {
+      setSelectedUser(null);
+      selectedUserRef.current = null;
+
+      // Keep the app on the chat page
+      // so browser Back only closes the opened chat.
+      window.history.pushState(
+        { chatApp: true },
+        "",
+        window.location.href
+      );
+    }
+  }
+
+  // Add only one history entry for the ChatPage.
+  if (!window.history.state?.chatApp) {
+    window.history.pushState(
+      { chatApp: true },
+      "",
+      window.location.href
+    );
+  }
+
+  window.addEventListener(
+    "popstate",
+    handleBrowserBack
+  );
+
+  return () => {
+    window.removeEventListener(
+      "popstate",
+      handleBrowserBack
+    );
+  };
+}, []);
+
   /* =====================================================
      BROWSER NOTIFICATIONS
   ===================================================== */
