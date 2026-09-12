@@ -2128,3 +2128,267 @@ textarea {
     transform: translateY(0);
   }
 }
+
+/* =========================================================
+   MOBILE CHAT + KEYBOARD FINAL FIX
+========================================================= */
+
+@media (max-width: 50rem) {
+
+  html,
+  body,
+  #root {
+    width: 100%;
+    height: 100%;
+    min-height: 100%;
+    margin: 0;
+    overflow: hidden;
+  }
+
+  .app {
+    width: 100%;
+    height: 100%;
+    min-height: 100%;
+    overflow: hidden;
+  }
+
+  /* Main chat container */
+  .chat-app {
+    position: fixed;
+    inset: 0;
+
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+
+    overflow: hidden;
+  }
+
+  /* =====================================================
+     CHAT LIST
+  ===================================================== */
+
+  .chat-app:not(.chat-open) .sidebar {
+    display: flex;
+
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+
+    height: 100%;
+  }
+
+  /* =====================================================
+     CHAT SCREEN
+  ===================================================== */
+
+  .chat-app.chat-open .sidebar {
+    display: none;
+  }
+
+  .chat-app.chat-open .chat-area {
+    position: fixed;
+
+    inset: 0;
+
+    width: 100%;
+    height: 100%;
+
+    min-width: 0;
+    min-height: 0;
+
+    display: flex;
+    flex-direction: column;
+
+    overflow: hidden;
+
+    transform: none;
+  }
+
+  /* =====================================================
+     HEADER
+     NEVER SCROLLS
+  ===================================================== */
+
+  .chat-open .chat-header {
+    position: relative;
+
+    flex: 0 0 auto;
+
+    width: 100%;
+
+    min-height: 4rem;
+    height: 4rem;
+
+    display: flex;
+    align-items: center;
+
+    z-index: 100;
+
+    overflow: hidden;
+
+    background: #080d18;
+  }
+
+  .chat-open .mobile-back-btn {
+    display: flex;
+
+    flex: 0 0 auto;
+
+    align-items: center;
+    justify-content: center;
+
+    width: 2.5rem;
+    height: 2.5rem;
+
+    background: transparent;
+
+    color: #fff;
+
+    font-size: 1.5rem;
+  }
+
+  /* =====================================================
+     CHAT HEADER USER INFO
+  ===================================================== */
+
+  .chat-open .chat-header > div:nth-child(2) {
+    flex: 1 1 auto;
+
+    min-width: 0;
+
+    overflow: hidden;
+  }
+
+  .chat-open .chat-header strong {
+    overflow: hidden;
+
+    white-space: nowrap;
+
+    text-overflow: ellipsis;
+  }
+
+  .chat-open .header-actions {
+    flex: 0 0 auto;
+
+    margin-left: auto;
+  }
+
+  /* =====================================================
+     ONLY MESSAGE AREA SCROLLS
+  ===================================================== */
+
+  .chat-open .messages {
+    position: relative;
+
+    flex: 1 1 auto;
+
+    width: 100%;
+
+    min-width: 0;
+    min-height: 0;
+
+    overflow-x: hidden;
+    overflow-y: auto;
+
+    -webkit-overflow-scrolling: touch;
+
+    overscroll-behavior: contain;
+  }
+
+  /* =====================================================
+     INPUT
+     ALWAYS BELOW MESSAGES
+  ===================================================== */
+
+  .chat-open .message-input {
+    position: relative;
+
+    flex: 0 0 auto;
+
+    width: 100%;
+
+    min-height: 4rem;
+
+    display: flex;
+    align-items: center;
+
+    z-index: 100;
+
+    background: #080d18;
+
+    border-top: 1px solid var(--border);
+
+    padding:
+      0.55rem
+      0.5rem;
+
+    padding-bottom:
+      max(
+        0.55rem,
+        env(safe-area-inset-bottom)
+      );
+  }
+
+  .chat-open .message-input input,
+  .chat-open .message-input textarea {
+    flex: 1 1 auto;
+
+    min-width: 0;
+
+    width: auto;
+  }
+
+  /* =====================================================
+     PROFILE — ALWAYS VISIBLE
+  ===================================================== */
+
+  .chat-app:not(.chat-open) .profile {
+    flex: 0 0 auto;
+
+    width: calc(100% - 1rem);
+
+    margin:
+      0.4rem
+      0.5rem
+      max(
+        0.5rem,
+        env(safe-area-inset-bottom)
+      );
+  }
+
+  /* =====================================================
+     CHAT LIST SCROLL
+  ===================================================== */
+
+  .chat-app:not(.chat-open) .chat-list {
+    flex: 1 1 auto;
+
+    min-height: 0;
+
+    overflow-y: auto;
+  }
+}
+
+
+/* =========================================================
+   SMALL PHONES
+========================================================= */
+
+@media (max-width: 30rem) {
+
+  .chat-open .chat-header {
+    min-height: 3.8rem;
+    height: 3.8rem;
+  }
+
+  .chat-open .message-input {
+    min-height: 3.8rem;
+  }
+
+  .chat-open .messages {
+    padding:
+      0.8rem
+      0.6rem;
+  }
+}
