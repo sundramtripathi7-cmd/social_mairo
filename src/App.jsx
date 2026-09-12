@@ -2227,7 +2227,7 @@ function ChatPage({
   ===================================================== */
 
   return (
-    <div className="chat-app">
+    <div className={`chat-app ${selectedUser ? "chat-open" : ""}`}>
 
       {/* =================================================
           SIDEBAR
@@ -2486,6 +2486,15 @@ function ChatPage({
             ================================================= */}
 
             <header className="chat-header">
+
+              <button
+                type="button"
+                className="mobile-back-btn"
+                onClick={() => setSelectedUser(null)}
+                aria-label="Back to chats"
+                >
+                 ←
+                </button>
 
               <div className="avatar">
 
