@@ -2,13 +2,6 @@ const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema(
   {
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-      maxlength: 50,
-    },
-
     username: {
       type: String,
       required: true,
@@ -38,6 +31,12 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+
+    gender: {
+      type: String,
+      enum: ["male", "female"],
+      required: true,
+          },
   },
   {
     timestamps: true,

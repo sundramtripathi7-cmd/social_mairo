@@ -3,8 +3,13 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 const User = require("../models/user");
+const { sendOTP } = require("../mailer");
+const OTP = require("../models/otp");
 
 const router = express.Router();
+
+const COLLEGE_DOMAIN = "@iiitvadodara.ac.in";
+const OTP_EXPIRY_MINUTES = 10;
 
 function authenticateToken(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -26,10 +31,7 @@ function authenticateToken(req, res, next) {
   }
 
   try {
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET
-    );
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     req.userId = decoded.userId;
     next();
@@ -47,25 +49,182 @@ function cleanUsername(value) {
     .toLowerCase();
 }
 
-// =====================================================
-// REGISTER
-// =====================================================
+function isCollegeEmail(email) {
+  return email.toLowerCase().trim().endsWith(COLLEGE_DOMAIN);
+}
 
-router.post("/register", async (req, res) => {
+/* =====================================================
+   SEND OTP
+===================================================== */
+
+router.post("/send-otp", async (req, res) => {
   try {
-    const { name, username, email, password } = req.body;
+    const { email } = req.body;
 
-    if (!name || !username || !email || !password) {
+    if (!email) {
       return res.status(400).json({
         success: false,
-        message: "All fields are required.",
+        message: "Email is required.",
       });
     }
 
-    if (password.length < 6) {
+    const cleanEmail = email.toLowerCase().trim();
+
+    if (!isCollegeEmail(cleanEmail)) {
       return res.status(400).json({
         success: false,
-        message: "Password must be at least 6 characters.",
+        message: "Only IIIT Vadodara student email IDs are allowed.",
+      });
+    }
+
+    const existingUser = await User.findOne({
+      email: cleanEmail,
+    });
+
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: "An account with this email already exists.",
+      });
+    }
+
+    const otp = Math.floor(
+      100000 + Math.random() * 900000
+    ).toString();
+
+    const expiresAt = new Date(
+      Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000
+    );
+
+    await OTP.deleteMany({
+      email: cleanEmail,
+    });
+
+    await OTP.create({
+      email: cleanEmail,
+      otp,
+      expiresAt,
+      verified: false,
+    });
+
+    await sendOTP(cleanEmail, otp);
+
+    return res.json({
+      success: true,
+      message: "OTP sent successfully.",
+    });
+  } catch (error) {
+    console.error("Send OTP error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Could not send OTP.",
+    });
+  }
+});
+
+/* =====================================================
+   VERIFY OTP
+===================================================== */
+
+router.post("/verify-otp", async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and OTP are required.",
+      });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const cleanOTP = String(otp).trim();
+
+    if (!isCollegeEmail(cleanEmail)) {
+      return res.status(400).json({
+        success: false,
+        message: "Only IIIT Vadodara student email IDs are allowed.",
+      });
+    }
+
+    const otpRecord = await OTP.findOne({
+      email: cleanEmail,
+      otp: cleanOTP,
+      verified: false,
+    });
+
+    if (!otpRecord) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid OTP.",
+      });
+    }
+
+    if (otpRecord.expiresAt < new Date()) {
+      await OTP.deleteOne({
+        _id: otpRecord._id,
+      });
+
+      return res.status(400).json({
+        success: false,
+        message: "OTP has expired. Please request a new OTP.",
+      });
+    }
+
+    otpRecord.verified = true;
+    await otpRecord.save();
+
+    return res.json({
+      success: true,
+      message: "Email verified successfully.",
+    });
+  } catch (error) {
+    console.error("Verify OTP error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Could not verify OTP.",
+    });
+  }
+});
+
+/* =====================================================
+   REGISTER
+===================================================== */
+
+router.post("/register", async (req, res) => {
+  try {
+    const {
+      username,
+      email,
+      password,
+      gender,
+    } = req.body;
+
+    if (!username || !email || !password || !gender) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Username, email, password and gender are required.",
+      });
+    }
+
+    const cleanGender = String(gender)
+      .trim()
+      .toLowerCase();
+
+    if (!["male", "female"].includes(cleanGender)) {
+      return res.status(400).json({
+        success: false,
+        message: "Gender must be male or female.",
+      });
+    }
+
+    if (password.length < 4) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 4 characters.",
       });
     }
 
@@ -79,14 +238,55 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    if (finalUsername.length < 3 || finalUsername.length > 30) {
+    if (
+      finalUsername.length < 3 ||
+      finalUsername.length > 30
+    ) {
       return res.status(400).json({
         success: false,
-        message: "Username must be between 3 and 30 characters.",
+        message:
+          "Username must be between 3 and 30 characters.",
       });
     }
 
     const cleanEmail = email.toLowerCase().trim();
+
+    if (!isCollegeEmail(cleanEmail)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Only IIIT Vadodara student email IDs are allowed.",
+      });
+    }
+
+    /* =================================================
+       CHECK EMAIL VERIFICATION
+    ================================================= */
+
+    const verifiedOTP = await OTP.findOne({
+      email: cleanEmail,
+      verified: true,
+    });
+
+    if (!verifiedOTP) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Please verify your college email with OTP first.",
+      });
+    }
+
+    if (verifiedOTP.expiresAt < new Date()) {
+      await OTP.deleteOne({
+        _id: verifiedOTP._id,
+      });
+
+      return res.status(403).json({
+        success: false,
+        message:
+          "Email verification has expired. Please request a new OTP.",
+      });
+    }
 
     const existingEmail = await User.findOne({
       email: cleanEmail,
@@ -95,7 +295,8 @@ router.post("/register", async (req, res) => {
     if (existingEmail) {
       return res.status(409).json({
         success: false,
-        message: "An account with this email already exists.",
+        message:
+          "An account with this email already exists.",
       });
     }
 
@@ -110,14 +311,21 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(
+      password,
+      10
+    );
 
     const user = await User.create({
-      name: name.trim(),
       username: finalUsername,
       email: cleanEmail,
       password: hashedPassword,
+      gender: cleanGender,
       photo: "",
+    });
+
+    await OTP.deleteOne({
+      _id: verifiedOTP._id,
     });
 
     const token = jwt.sign(
@@ -136,9 +344,9 @@ router.post("/register", async (req, res) => {
       token,
       user: {
         id: user._id,
-        name: user.name,
         username: user.username,
         email: user.email,
+        gender: user.gender,
         photo: user.photo || "",
       },
     });
@@ -156,7 +364,8 @@ router.post("/register", async (req, res) => {
       if (error.keyPattern?.email) {
         return res.status(409).json({
           success: false,
-          message: "An account with this email already exists.",
+          message:
+            "An account with this email already exists.",
         });
       }
     }
@@ -168,9 +377,9 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// =====================================================
-// LOGIN
-// =====================================================
+/* =====================================================
+   LOGIN
+===================================================== */
 
 router.post("/login", async (req, res) => {
   try {
@@ -183,8 +392,10 @@ router.post("/login", async (req, res) => {
       });
     }
 
+    const cleanEmail = email.toLowerCase().trim();
+
     const user = await User.findOne({
-      email: email.toLowerCase().trim(),
+      email: cleanEmail,
     });
 
     if (!user) {
@@ -222,9 +433,9 @@ router.post("/login", async (req, res) => {
       token,
       user: {
         id: user._id,
-        name: user.name,
         username: user.username || "",
         email: user.email,
+        gender: user.gender || "",
         photo: user.photo || "",
       },
     });
@@ -238,13 +449,15 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// =====================================================
-// CURRENT USER
-// =====================================================
+/* =====================================================
+   CURRENT USER
+===================================================== */
 
 router.get("/me", authenticateToken, async (req, res) => {
   try {
-    const user = await User.findById(req.userId).select("-password");
+    const user = await User.findById(
+      req.userId
+    ).select("-password");
 
     if (!user) {
       return res.status(404).json({
@@ -257,14 +470,17 @@ router.get("/me", authenticateToken, async (req, res) => {
       success: true,
       user: {
         id: user._id,
-        name: user.name,
         username: user.username || "",
         email: user.email,
+        gender: user.gender || "",
         photo: user.photo || "",
       },
     });
   } catch (error) {
-    console.error("Get current user error:", error);
+    console.error(
+      "Get current user error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
@@ -273,176 +489,227 @@ router.get("/me", authenticateToken, async (req, res) => {
   }
 });
 
-// =====================================================
-// UPDATE PROFILE
-// =====================================================
+/* =====================================================
+   UPDATE PROFILE
+===================================================== */
 
-router.patch("/profile", authenticateToken, async (req, res) => {
-  try {
-    const { name, username, photo } = req.body;
+router.patch(
+  "/profile",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const {
+        username,
+        photo,
+        gender,
+      } = req.body;
 
-    if (name !== undefined) {
-      if (!name.trim()) {
+      let finalUsername;
+
+      if (username !== undefined) {
+        finalUsername =
+          cleanUsername(username);
+
+        if (!finalUsername) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Username cannot be empty.",
+          });
+        }
+
+        if (
+          !/^[a-zA-Z0-9_.]+$/.test(
+            finalUsername
+          )
+        ) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Username can contain only letters, numbers, underscore and dot.",
+          });
+        }
+
+        if (
+          finalUsername.length < 3 ||
+          finalUsername.length > 30
+        ) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Username must be between 3 and 30 characters.",
+          });
+        }
+
+        const usernameTaken =
+          await User.findOne({
+            username: finalUsername,
+            _id: { $ne: req.userId },
+          });
+
+        if (usernameTaken) {
+          return res.status(409).json({
+            success: false,
+            message:
+              "This username is already taken.",
+          });
+        }
+      }
+
+      if (
+        photo !== undefined &&
+        typeof photo !== "string"
+      ) {
         return res.status(400).json({
           success: false,
-          message: "Name cannot be empty.",
+          message: "Invalid profile photo.",
         });
       }
 
-      if (name.trim().length > 50) {
-        return res.status(400).json({
-          success: false,
-          message: "Name cannot exceed 50 characters.",
-        });
-      }
-    }
+      if (gender !== undefined) {
+        const cleanGender = String(gender)
+          .trim()
+          .toLowerCase();
 
-    let finalUsername;
-
-    if (username !== undefined) {
-      finalUsername = cleanUsername(username);
-
-      if (!finalUsername) {
-        return res.status(400).json({
-          success: false,
-          message: "Username cannot be empty.",
-        });
+        if (
+          !["male", "female"].includes(
+            cleanGender
+          )
+        ) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Gender must be male or female.",
+          });
+        }
       }
 
-      if (!/^[a-zA-Z0-9_.]+$/.test(finalUsername)) {
-        return res.status(400).json({
+      const updateData = {};
+
+      if (username !== undefined) {
+        updateData.username = finalUsername;
+      }
+
+      if (photo !== undefined) {
+        updateData.photo = photo;
+      }
+
+      if (gender !== undefined) {
+        updateData.gender = String(gender)
+          .trim()
+          .toLowerCase();
+      }
+
+      const updatedUser =
+        await User.findByIdAndUpdate(
+          req.userId,
+          { $set: updateData },
+          {
+            new: true,
+            runValidators: true,
+          }
+        ).select("-password");
+
+      if (!updatedUser) {
+        return res.status(404).json({
           success: false,
-          message:
-            "Username can contain only letters, numbers, underscore and dot.",
+          message: "User not found.",
         });
       }
 
-      if (finalUsername.length < 3 || finalUsername.length > 30) {
-        return res.status(400).json({
-          success: false,
-          message: "Username must be between 3 and 30 characters.",
-        });
-      }
-
-      const usernameTaken = await User.findOne({
-        username: finalUsername,
-        _id: { $ne: req.userId },
+      return res.json({
+        success: true,
+        message:
+          "Profile updated successfully.",
+        user: {
+          id: updatedUser._id,
+          username:
+            updatedUser.username || "",
+          email: updatedUser.email,
+          gender: updatedUser.gender || "",
+          photo: updatedUser.photo || "",
+        },
       });
+    } catch (error) {
+      console.error(
+        "Update profile error:",
+        error
+      );
 
-      if (usernameTaken) {
+      if (error.code === 11000) {
         return res.status(409).json({
           success: false,
-          message: "This username is already taken.",
+          message:
+            "This username is already taken.",
         });
       }
-    }
 
-    if (photo !== undefined && typeof photo !== "string") {
-      return res.status(400).json({
+      return res.status(500).json({
         success: false,
-        message: "Invalid profile photo.",
+        message:
+          "Could not update profile.",
       });
     }
-
-    const updateData = {};
-
-    if (name !== undefined) {
-      updateData.name = name.trim();
-    }
-
-    if (username !== undefined) {
-      updateData.username = finalUsername;
-    }
-
-    if (photo !== undefined) {
-      updateData.photo = photo;
-    }
-
-    const updatedUser = await User.findByIdAndUpdate(
-      req.userId,
-      { $set: updateData },
-      {
-        new: true,
-        runValidators: true,
-      }
-    ).select("-password");
-
-    if (!updatedUser) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found.",
-      });
-    }
-
-    return res.json({
-      success: true,
-      message: "Profile updated successfully.",
-      user: {
-        id: updatedUser._id,
-        name: updatedUser.name,
-        username: updatedUser.username || "",
-        email: updatedUser.email,
-        photo: updatedUser.photo || "",
-      },
-    });
-  } catch (error) {
-    console.error("Update profile error:", error);
-
-    if (error.code === 11000) {
-      return res.status(409).json({
-        success: false,
-        message: "This username is already taken.",
-      });
-    }
-
-    return res.status(500).json({
-      success: false,
-      message: "Could not update profile.",
-    });
   }
-});
+);
 
-// =====================================================
-// GET ALL USERS
-// =====================================================
+/* =====================================================
+   GET ALL USERS
+===================================================== */
 
-router.get("/users", authenticateToken, async (req, res) => {
-  try {
-    const users = await User.find(
-      {
-        _id: { $ne: req.userId },
-      },
-      {
-        password: 0,
-      }
-    ).sort({
-      name: 1,
-    });
+router.get(
+  "/users",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const users = await User.find(
+        {
+          _id: { $ne: req.userId },
+        },
+        {
+          password: 0,
+          email: 0,
+        }
+      ).sort({
+        username: 1,
+      });
 
-    const formattedUsers = users.map((user) => ({
-      id: user._id,
-      name: user.name,
-      username: user.username || "",
-      email: user.email,
-      photo: user.photo || "",
-      initial: user.name.charAt(0).toUpperCase(),
-      online: false,
-      lastMessage: "Start a conversation",
-      time: "",
-    }));
+      const formattedUsers =
+        users.map((user) => ({
+          id: user._id,
+          username:
+            user.username || "",
+          gender:
+            user.gender || "",
+          photo:
+            user.photo || "",
+          initial:
+            user.username
+              ?.charAt(0)
+              .toUpperCase() || "?",
+          online: false,
+          lastMessage:
+            "Start a conversation",
+          time: "",
+        }));
 
-    return res.json({
-      success: true,
-      users: formattedUsers,
-    });
-  } catch (error) {
-    console.error("Get users error:", error);
+      return res.json({
+        success: true,
+        users: formattedUsers,
+      });
+    } catch (error) {
+      console.error(
+        "Get users error:",
+        error
+      );
 
-    return res.status(500).json({
-      success: false,
-      message: "Could not load users.",
-    });
+      return res.status(500).json({
+        success: false,
+        message:
+          "Could not load users.",
+      });
+    }
   }
-});
+);
 
 module.exports = router;

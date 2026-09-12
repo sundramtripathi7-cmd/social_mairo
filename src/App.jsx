@@ -158,11 +158,8 @@ function LoginPage({ setPage, setCurrentUser }) {
           </div>
 
           {error && (
-            <p
-              style={{
-                color: "#ef4444",
-                fontSize: "13px",
-              }}
+            <p className="jsx-style-1"
+              
             >
               {error}
             </p>
@@ -198,191 +195,523 @@ function LoginPage({ setPage, setCurrentUser }) {
 ===================================================== */
 
 function SignupPage({ setPage, setCurrentUser }) {
-  const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [gender, setGender] = useState("");
+
+  const [showPassword, setShowPassword] = useState(false);
+
+  const [otp, setOtp] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
 
   const [loading, setLoading] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [verifyLoading, setVerifyLoading] = useState(false);
+
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-  async function handleSignup() {
-    setError("");
+  const [resendTimer, setResendTimer] = useState(0);
 
-    if (
-      !name ||
-      !username ||
-      !email ||
-      !password ||
-      !confirmPassword
-    ) {
-      setError("Please fill all fields.");
+  /* =====================================================
+     OTP RESEND TIMER
+  ===================================================== */
+
+  useEffect(() => {
+    if (resendTimer <= 0) {
       return;
     }
 
-    const cleanUsername = username.trim().toLowerCase();
+    const timer = setInterval(() => {
+      setResendTimer((previous) => previous - 1);
+    }, 1000);
 
-    if (!/^[a-zA-Z0-9_.]+$/.test(cleanUsername)) {
+    return () => clearInterval(timer);
+  }, [resendTimer]);
+
+  /* =====================================================
+     EMAIL CHANGE
+  ===================================================== */
+
+  function handleEmailChange(event) {
+    const value = event.target.value;
+
+    setEmail(value);
+
+    // Email change invalidates previous OTP verification
+    setOtp("");
+    setOtpSent(false);
+    setOtpVerified(false);
+    setResendTimer(0);
+    setError("");
+    setSuccess("");
+  }
+
+  /* =====================================================
+     SEND OTP
+  ===================================================== */
+
+  async function handleSendOTP() {
+    setError("");
+    setSuccess("");
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!cleanEmail) {
+      setError("Please enter your college email.");
+      return;
+    }
+
+    if (!cleanEmail.endsWith("@iiitvadodara.ac.in")) {
       setError(
-        "Username can contain only letters, numbers, underscore and dot."
+        "Only IIIT Vadodara college email is allowed."
       );
       return;
     }
 
-    if (cleanUsername.length < 3 || cleanUsername.length > 30) {
-      setError("Username must be between 3 and 30 characters.");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
-
-    setLoading(true);
+    setOtpLoading(true);
 
     try {
-      const response = await fetch(`${API_URL}/auth/register`, {
+      const response = await fetch(
+        `${API_URL}/auth/send-otp`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: cleanEmail,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(
+          data.message || "Could not send OTP."
+        );
+        return;
+      }
+
+      setEmail(cleanEmail);
+      setOtpSent(true);
+      setOtpVerified(false);
+      setOtp("");
+      setResendTimer(60);
+
+      setSuccess(
+        "OTP sent successfully. Check your college email."
+      );
+    } catch (error) {
+      console.error("Send OTP error:", error);
+      setError("Cannot connect to server.");
+    } finally {
+      setOtpLoading(false);
+    }
+  }
+
+  /* =====================================================
+     VERIFY OTP
+  ===================================================== */
+
+  async function handleVerifyOTP() {
+    setError("");
+    setSuccess("");
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!cleanEmail) {
+      setError("Please enter your college email.");
+      return;
+    }
+
+    if (!/^\d{6}$/.test(otp)) {
+      setError("Please enter the 6-digit OTP.");
+      return;
+    }
+
+    setVerifyLoading(true);
+
+    try {
+      const response = await fetch(
+        `${API_URL}/auth/verify-otp`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: cleanEmail,
+            otp,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(
+          data.message || "Invalid OTP."
+        );
+        return;
+      }
+
+      setOtpVerified(true);
+
+      setSuccess(
+        "Email verified successfully. You can create your account now."
+      );
+    } catch (error) {
+      console.error("Verify OTP error:", error);
+      setError("Cannot connect to server.");
+    } finally {
+      setVerifyLoading(false);
+    }
+  }
+
+  /* =====================================================
+     SIGNUP
+  ===================================================== */
+async function handleSignup() {
+  setError("");
+  setSuccess("");
+
+  if (
+    !username.trim() ||
+    !email.trim() ||
+    !password ||
+    !gender
+  ) {
+    setError("Please fill all fields.");
+    return;
+  }
+
+  if (!otpVerified) {
+    setError(
+      "Please verify your college email with OTP first."
+    );
+    return;
+  }
+
+  const cleanUsername =
+    username.trim().toLowerCase().replace(/^@/, "");
+
+  const cleanEmail =
+    email.trim().toLowerCase();
+
+  if (!/^[a-zA-Z0-9_.]+$/.test(cleanUsername)) {
+    setError(
+      "Username can contain only letters, numbers, underscore and dot."
+    );
+    return;
+  }
+
+  if (
+    cleanUsername.length < 3 ||
+    cleanUsername.length > 30
+  ) {
+    setError(
+      "Username must be between 3 and 30 characters."
+    );
+    return;
+  }
+
+  if (!cleanEmail.endsWith("@iiitvadodara.ac.in")) {
+    setError(
+      "Only IIIT Vadodara college email is allowed."
+    );
+    return;
+  }
+
+  if (password.length < 4) {
+    setError(
+      "Password must be at least 4 characters."
+    );
+    return;
+  }
+
+  setLoading(true);
+
+  try {
+    const response = await fetch(
+      `${API_URL}/auth/register`,
+      {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name,
           username: cleanUsername,
-          email,
+          email: cleanEmail,
           password,
+          gender,
         }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.message);
-        return;
       }
+    );
 
-      sessionStorage.setItem("token", data.token);
-      sessionStorage.setItem("user", JSON.stringify(data.user));
+    const data = await response.json();
 
-      setCurrentUser(data.user);
-      setPage("chat");
-    } catch (error) {
-      console.error(error);
-      setError("Cannot connect to server.");
-    } finally {
-      setLoading(false);
+    if (!response.ok) {
+      setError(
+        data.message || "Could not create account."
+      );
+      return;
     }
+
+    sessionStorage.setItem(
+      "token",
+      data.token
+    );
+
+    sessionStorage.setItem(
+      "user",
+      JSON.stringify(data.user)
+    );
+
+    setCurrentUser(data.user);
+    setPage("chat");
+  } catch (error) {
+    console.error("Signup error:", error);
+    setError("Cannot connect to server.");
+  } finally {
+    setLoading(false);
   }
+}
+
+  /* =====================================================
+     ENTER KEY
+  ===================================================== */
+
+  function handleKeyDown(event) {
+    if (event.key !== "Enter") {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (otpSent && !otpVerified) {
+      handleVerifyOTP();
+      return;
+    }
+
+    if (!otpVerified) {
+      handleSendOTP();
+      return;
+    }
+
+    handleSignup();
+  }
+
+  /* =====================================================
+     UI
+  ===================================================== */
 
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <div className="auth-logo">💬</div>
+        <div className="auth-header">
+          <h1>Create Account</h1>
+          <p>
+            Join Messaging App with your college email
+          </p>
+        </div>
 
-        <h1>Create Account</h1>
+        {error && (
+          <div className="auth-error">
+            {error}
+          </div>
+        )}
 
-        <p className="auth-subtitle">
-          Create your account to start chatting
-        </p>
+        {success && (
+          <div className="auth-success">
+            {success}
+          </div>
+        )}
 
-        <form>
-          <label>Full Name</label>
+        {/* USERNAME */}
 
-          <input
-            type="text"
-            placeholder="Enter your name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-
+        <div className="form-group">
           <label>Username</label>
 
           <input
             type="text"
-            placeholder="Choose a unique username"
+            placeholder="@username"
             value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            onChange={(event) =>
+              setUsername(event.target.value)
+            }
+            onKeyDown={handleKeyDown}
             maxLength={30}
-            autoComplete="username"
           />
 
-          <p
-            style={{
-              color: "#94a3b8",
-              fontSize: "12px",
-              marginTop: "-6px",
-              marginBottom: "14px",
-            }}
-          >
-            Letters, numbers, underscore and dot only.
-          </p>
+          <small>
+            3–30 characters: letters, numbers, _
+            and .
+          </small>
+        </div>
 
-          <label>Email</label>
+        {/* COLLEGE EMAIL */}
 
-          <input
-            type="email"
-            placeholder="Enter your email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
+        <div className="form-group">
+          <label>College Email</label>
 
+          <div className="otp-email-row">
+            <input
+              type="email"
+              placeholder="yourid@iiitvadodara.ac.in"
+              value={email}
+              onChange={handleEmailChange}
+              onKeyDown={handleKeyDown}
+              disabled={otpVerified}
+            />
+
+            <button
+              type="button"
+              onClick={handleSendOTP}
+              disabled={
+                otpLoading ||
+                resendTimer > 0 ||
+                otpVerified
+              }
+              className="otp-button"
+            >
+              {otpLoading
+                ? "Sending..."
+                : otpVerified
+                ? "Verified ✓"
+                : resendTimer > 0
+                ? `Resend (${resendTimer})`
+                : otpSent
+                ? "Resend OTP"
+                : "Send OTP"}
+            </button>
+          </div>
+        </div>
+
+        {/* OTP */}
+
+        {otpSent && !otpVerified && (
+          <div className="form-group">
+            <label>Enter OTP</label>
+
+            <div className="otp-email-row">
+              <input
+                type="text"
+                placeholder="6-digit OTP"
+                value={otp}
+                onChange={(event) =>
+                  setOtp(
+                    event.target.value
+                      .replace(/\D/g, "")
+                      .slice(0, 6)
+                  )
+                }
+                onKeyDown={handleKeyDown}
+                maxLength={6}
+                inputMode="numeric"
+              />
+
+              <button
+                type="button"
+                onClick={handleVerifyOTP}
+                disabled={
+                  verifyLoading ||
+                  otp.length !== 6
+                }
+                className="otp-button"
+              >
+                {verifyLoading
+                  ? "Verifying..."
+                  : "Verify OTP"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* PASSWORD */}
+
+        <div className="form-group">
           <label>Password</label>
 
-          <input
-            type="password"
-            placeholder="Create a password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
+          <div className="password-input-wrapper">
+            <input
+              type={
+                showPassword
+                  ? "text"
+                  : "password"
+              }
+              placeholder="Enter password"
+              value={password}
+              onChange={(event) =>
+                setPassword(event.target.value)
+              }
+              onKeyDown={handleKeyDown}
+            />
 
-          <label>Confirm Password</label>
-
-          <input
-            type="password"
-            placeholder="Confirm your password"
-            value={confirmPassword}
-            onChange={(e) =>
-              setConfirmPassword(e.target.value)
-            }
-          />
-
-          {error && (
-            <p
-              style={{
-                color: "#ef4444",
-                fontSize: "13px",
-              }}
+            <button
+              type="button"
+              className="password-toggle"
+              onClick={() =>
+                setShowPassword(
+                  (previous) => !previous
+                )
+              }
+              aria-label={
+                showPassword
+                  ? "Hide password"
+                  : "Show password"
+              }
             >
-              {error}
-            </p>
-          )}
+              {showPassword ? "🙈" : "👁️"}
+            </button>
+          </div>
+        </div>
 
-          <button
-            type="button"
-            className="primary-btn"
-            onClick={handleSignup}
-            disabled={loading}
-          >
-            {loading ? "Creating..." : "Create Account"}
-          </button>
-        </form>
+        {/* GENDER */}
 
-        <p className="switch-text">
-          Already have an account?
+      <div className="form-group">
+      <label>Gender</label>
 
+             <select
+            value={gender}
+              onChange={(event) => setGender(event.target.value)}
+                >
+               <option value="">Select Gender</option>
+                <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  </select>
+              </div>
+
+        {/* CREATE ACCOUNT */}
+
+        <button
+          type="button"
+          className="auth-button"
+          onClick={handleSignup}
+          disabled={loading || !otpVerified}
+        >
+          {loading
+            ? "Creating Account..."
+            : "Create Account"}
+        </button>
+
+        <div className="auth-switch">
+          Already have an account?{" "}
           <button
             type="button"
             onClick={() => setPage("login")}
           >
             Login
           </button>
-        </p>
+        </div>
       </div>
     </div>
   );
 }
+  
 
 /* =====================================================
    CHAT PAGE
@@ -424,6 +753,9 @@ function ChatPage({
   const selectedUserRef = useRef(null);
 
   const typingTimeoutRef = useRef(null);
+
+
+  const [genderFilter, setGenderFilter] = useState("all");
 
   /*
     NEW:
@@ -1857,15 +2189,19 @@ function ChatPage({
   ===================================================== */
 
   const filteredUsers =
-    users.filter((user) => {
-      const query = search.toLowerCase();
+  users.filter((user) => {
+    const query = search.toLowerCase();
 
-      return (
-        user.name?.toLowerCase().includes(query) ||
-        user.username?.toLowerCase().includes(query)
-      );
-    });
+    const matchesSearch =
+      user.name?.toLowerCase().includes(query) ||
+      user.username?.toLowerCase().includes(query);
 
+    const matchesGender =
+      genderFilter === "all" ||
+      user.gender === genderFilter;
+
+    return matchesSearch && matchesGender;
+  });
   /* =====================================================
      LOADING
   ===================================================== */
@@ -1901,7 +2237,7 @@ function ChatPage({
 
         <div className="sidebar-top">
           <h2>
-            ChatApp
+            mairochat
           </h2>
 
           <button className="new-chat-btn">
@@ -1933,208 +2269,135 @@ function ChatPage({
         {/* ERROR */}
 
         {error && (
-          <p
-            style={{
-              color:
-                "#ef4444",
-              padding:
-                "10px",
-              fontSize:
-                "13px",
-            }}
+          <p className="jsx-style-2"
+            
           >
             {error}
           </p>
         )}
 
+
+        <div className="gender-filter">
+  <button
+    type="button"
+    className={genderFilter === "all" ? "active" : ""}
+    onClick={() => setGenderFilter("all")}
+  >
+    All
+  </button>
+
+  <button
+    type="button"
+    className={genderFilter === "male" ? "active" : ""}
+    onClick={() => setGenderFilter("male")}
+  >
+    Male
+  </button>
+
+  <button
+    type="button"
+    className={genderFilter === "female" ? "active" : ""}
+    onClick={() => setGenderFilter("female")}
+  >
+    Female
+  </button>
+</div>
+
         {/* USERS */}
 
-        <div className="chat-list">
+<div className="chat-list">
+  {filteredUsers.length > 0 ? (
+    filteredUsers.map((user) => {
+      const userId = String(user.id || user._id);
+      const unread = unreadCounts[userId] || 0;
 
-          {filteredUsers.length >
-          0 ? (
-            filteredUsers.map(
-              (user) => {
+      return (
+        <div
+          key={userId}
+          className={`chat-user ${
+            selectedUserId === userId ? "active" : ""
+          }`}
+          onClick={() => selectUser(user)}
+        >
+          {/* Avatar */}
+          <div className="avatar">
+            {user.photo ? (
+              <img
+                src={user.photo}
+                alt={`@${user.username}`}
+                className="chat-user-photo"
+              />
+            ) : (
+              user.initial ||
+              user.username?.charAt(0).toUpperCase()
+            )}
 
-                const userId =
-                  String(
-                    user.id ||
-                      user._id
-                  );
+            {user.online && (
+              <span className="online-dot"></span>
+            )}
+          </div>
 
-                const unread =
-                  unreadCounts[
-                    userId
-                  ] || 0;
+          {/* User Info */}
+          <div className="chat-info">
+            {/* Username + Time */}
+            <div className="chat-name">
+              <strong>@{user.username}</strong>
 
-                return (
-                  <div
-                    key={userId}
-                    className={`chat-user ${
-                      selectedUserId ===
-                      userId
-                        ? "active"
-                        : ""
-                    }`}
-                    onClick={() =>
-                      selectUser(
-                        user
-                      )
-                    }
-                  >
-
-                    <div className="avatar">
-
-                      {user.photo ? (
-                        <img
-                          src={user.photo}
-                          alt={user.name}
-                          style={{
-                            width: "100%",
-                            height: "100%",
-                            borderRadius: "50%",
-                            objectFit: "cover",
-                          }}
-                        />
-                      ) : (
-                        user.initial ||
-                        user.name
-                          .charAt(0)
-                          .toUpperCase()
-                      )}
-
-                      {user.online && (
-                        <span className="online-dot"></span>
-                      )}
-
-                    </div>
-
-                    <div className="chat-info">
-
-                      <div className="chat-name">
-
-                        <strong>
-                          {user.name}
-                        </strong>
-
-                        <span>
-                          {user.time}
-                        </span>
-
-                      </div>
-
-                      <div
-                        style={{
-                          display:
-                            "flex",
-                          justifyContent:
-                            "space-between",
-                          alignItems:
-                            "center",
-                          gap:
-                            "8px",
-                        }}
-                      >
-
-                        <p
-                          style={{
-                            margin:
-                              0,
-                            overflow:
-                              "hidden",
-                            textOverflow:
-                              "ellipsis",
-                            whiteSpace:
-                              "nowrap",
-                          }}
-                        >
-                          {user.username
-                            ? `@${user.username}`
-                            : user.lastMessage ||
-                              "Start a conversation"}
-                        </p>
-
-                        {unread >
-                          0 && (
-                          <span
-                            style={{
-                              minWidth:
-                                "20px",
-                              height:
-                                "20px",
-                              borderRadius:
-                                "50%",
-                              display:
-                                "flex",
-                              alignItems:
-                                "center",
-                              justifyContent:
-                                "center",
-                              background:
-                                "#6366f1",
-                              color:
-                                "white",
-                              fontSize:
-                                "11px",
-                              fontWeight:
-                                "bold",
-                              padding:
-                                "0 5px",
-                              flexShrink:
-                                0,
-                            }}
-                          >
-                            {unread >
-                            99
-                              ? "99+"
-                              : unread}
-                          </span>
-                        )}
-
-                      </div>
-
-                    </div>
-
-                  </div>
-                );
-              }
-            )
-          ) : (
-            <div className="no-results">
-
-              {search
-                ? "No users found"
-                : "No other users yet"}
-
+              <span>{user.time}</span>
             </div>
-          )}
 
+            {/* Last Message + Unread Count */}
+           {/* Online / Offline Status */}
+            <div className="chat-status-row">
+              <span
+               className={`status-dot ${
+               user.online ? "status-online" : "status-offline"
+                              }`}
+                     ></span>
+
+                 <span
+               className={`status-text ${
+                  user.online ? "text-online" : "text-offline"
+                  }`}
+                      >
+                    {user.online ? "Online" : "Offline"}
+                  </span>
+
+                {unread > 0 && (
+                <span className="unread-badge">
+                {unread > 99 ? "99+" : unread}
+               </span>
+                   )}
+                </div>
+          </div>
         </div>
-
+      );
+    })
+  ) : (
+    <div className="no-results">
+      {search
+        ? "No users found"
+        : "No other users yet"}
+    </div>
+  )}
+</div>
         {/* =================================================
             PROFILE
         ================================================= */}
 
         <div
-          className="profile"
+          className="profile jsx-style-3"
           onClick={openProfile}
-          style={{
-            cursor: "pointer",
-          }}
+          
         >
 
           <div className="avatar small">
 
             {currentUser?.photo ? (
-              <img
+              <img className="jsx-style-4"
                 src={currentUser.photo}
                 alt={currentUser.name}
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  borderRadius: "50%",
-                  objectFit: "cover",
-                }}
+                
               />
             ) : (
               currentUser?.name
@@ -2150,12 +2413,8 @@ function ChatPage({
 
           </div>
 
-          <div
-            style={{
-              flex: 1,
-              minWidth:
-                0,
-            }}
+          <div className="jsx-style-5"
+            
           >
 
             <strong>
@@ -2163,13 +2422,8 @@ function ChatPage({
                 "My Profile"}
             </strong>
 
-            <p
-              style={{
-                cursor:
-                  "pointer",
-                userSelect:
-                  "none",
-              }}
+            <p className="jsx-style-6"
+              
               onClick={() =>
                 setShowOnline(
                   (previous) =>
@@ -2184,7 +2438,7 @@ function ChatPage({
 
           </div>
 
-          <button
+          <button className="jsx-style-7"
             type="button"
             onClick={() =>
               setShowOnline(
@@ -2192,18 +2446,7 @@ function ChatPage({
                   !previous
               )
             }
-            style={{
-              background:
-                "transparent",
-              border:
-                "none",
-              cursor:
-                "pointer",
-              fontSize:
-                "18px",
-              padding:
-                "4px",
-            }}
+            
             title={
               showOnline
                 ? "Hide my online status"
@@ -2247,9 +2490,7 @@ function ChatPage({
               <div className="avatar">
 
                 {selectedUser.initial ||
-                  selectedUser.name
-                    .charAt(0)
-                    .toUpperCase()}
+                selectedUser.username?.charAt(0).toUpperCase()}
 
                 {selectedUserIsOnline && (
                   <span className="online-dot"></span>
@@ -2260,7 +2501,7 @@ function ChatPage({
               <div>
 
                 <strong>
-                  {selectedUser.name}
+                    @{selectedUser.username}
                 </strong>
 
                 <p>
@@ -2307,9 +2548,8 @@ function ChatPage({
                 0 ? (
 
                 <div className="no-messages">
-                  Start a conversation
-                  with{" "}
-                  {selectedUser.name}
+                   Start a conversation with{" "}
+                     @{selectedUser.username}
                 </div>
 
               ) : (
@@ -2317,12 +2557,9 @@ function ChatPage({
                 messages.map(
                   (msg) => (
 
-                    <div
-                      key={msg.id}
-                      className={`message ${msg.type}`}
-                      style={{
-                        position: "relative",
-                      }}
+                    <div key={msg.id}
+                      className={`message ${msg.type} jsx-style-8`}
+                      
                     >
 
                       <p>
@@ -2346,18 +2583,11 @@ function ChatPage({
                       </span>
 
                       {msg.type === "sent" && (
-                        <button
+                        <button className="jsx-style-9"
                           type="button"
                           onClick={() => deleteMessage(msg.id)}
                           title="Delete message"
-                          style={{
-                            marginLeft: "8px",
-                            border: "none",
-                            background: "transparent",
-                            cursor: "pointer",
-                            fontSize: "12px",
-                            opacity: 0.65,
-                          }}
+                          
                         >
                           🗑️
                         </button>
@@ -2374,11 +2604,9 @@ function ChatPage({
                   AUTO SCROLL TARGET
               ================================================= */}
 
-              <div
+              <div className="jsx-style-10"
                 ref={messagesEndRef}
-                style={{
-                  height: "1px",
-                }}
+                
               />
 
             </section>
@@ -2388,18 +2616,13 @@ function ChatPage({
             ================================================= */}
 
             <div
-              className="message-input"
-              style={{ position: "relative" }}
+              className="message-input jsx-style-11"
+              
             >
 
               {showEmojiPicker && (
-                <div
-                  style={{
-                    position: "absolute",
-                    bottom: "65px",
-                    left: "0",
-                    zIndex: 9999,
-                  }}
+                <div className="jsx-style-12"
+                  
                 >
                   <EmojiPicker
                     theme="dark"
@@ -2446,7 +2669,7 @@ function ChatPage({
 
               <input
                 type="text"
-                placeholder={`Message ${selectedUser.name}...`}
+                 placeholder={`Message @${selectedUser.username}...`}
                 value={message}
                 onChange={
                   handleTyping
@@ -2505,63 +2728,30 @@ function ChatPage({
       ================================================= */}
 
       {showProfile && (
-        <div
+        <div className="jsx-style-13"
           onClick={closeProfile}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0, 0, 0, 0.72)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 9999,
-            padding: "20px",
-          }}
+          
         >
-          <div
+          <div className="jsx-style-14"
             onClick={(event) =>
               event.stopPropagation()
             }
-            style={{
-              width: "100%",
-              maxWidth: "430px",
-              background: "#171923",
-              border: "1px solid #2b2f3d",
-              borderRadius: "18px",
-              padding: "28px",
-              boxShadow:
-                "0 20px 60px rgba(0,0,0,0.5)",
-              boxSizing: "border-box",
-            }}
+            
           >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "24px",
-              }}
+            <div className="jsx-style-15"
+              
             >
-              <h2
-                style={{
-                  margin: 0,
-                  color: "#fff",
-                }}
+              <h2 className="jsx-style-16"
+                
               >
                 My Profile
               </h2>
 
-              <button
+              <button className="jsx-style-17"
                 type="button"
                 onClick={closeProfile}
                 disabled={profileSaving}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "#cbd5e1",
-                  fontSize: "24px",
-                  cursor: "pointer",
-                }}
+                
               >
                 ×
               </button>
@@ -2569,46 +2759,22 @@ function ChatPage({
 
             {/* PROFILE PHOTO */}
 
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                marginBottom: "24px",
-              }}
+            <div className="jsx-style-18"
+              
             >
-              <label
-                style={{
-                  width: "110px",
-                  height: "110px",
-                  borderRadius: "50%",
-                  background: "#6366f1",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  overflow: "hidden",
-                  cursor: "pointer",
-                  border: "3px solid #818cf8",
-                }}
+              <label className="jsx-style-19"
+                
                 title="Change profile photo"
               >
                 {profilePhoto ? (
-                  <img
+                  <img className="jsx-style-20"
                     src={profilePhoto}
                     alt="Profile"
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "cover",
-                    }}
+                    
                   />
                 ) : (
-                  <span
-                    style={{
-                      color: "#fff",
-                      fontSize: "40px",
-                      fontWeight: "700",
-                    }}
+                  <span className="jsx-style-21"
+                    
                   >
                     {profileName
                       ? profileName
@@ -2618,23 +2784,16 @@ function ChatPage({
                   </span>
                 )}
 
-                <input
+                <input className="jsx-style-22"
                   type="file"
                   accept="image/*"
                   onChange={handleProfilePhoto}
-                  style={{
-                    display: "none",
-                  }}
+                  
                 />
               </label>
 
-              <p
-                style={{
-                  color: "#94a3b8",
-                  fontSize: "12px",
-                  marginTop: "10px",
-                  marginBottom: 0,
-                }}
+              <p className="jsx-style-23"
+                
               >
                 Click photo to change
               </p>
@@ -2642,18 +2801,13 @@ function ChatPage({
 
             {/* NAME */}
 
-            <label
-              style={{
-                display: "block",
-                color: "#e2e8f0",
-                fontSize: "14px",
-                marginBottom: "7px",
-              }}
+            <label className="jsx-style-24"
+              
             >
               Full Name
             </label>
 
-            <input
+            <input className="jsx-style-25"
               type="text"
               value={profileName}
               onChange={(event) =>
@@ -2661,27 +2815,18 @@ function ChatPage({
               }
               disabled={profileSaving}
               maxLength={50}
-              style={{
-                width: "100%",
-                boxSizing: "border-box",
-                marginBottom: "18px",
-              }}
+              
             />
 
             {/* USERNAME */}
 
-            <label
-              style={{
-                display: "block",
-                color: "#e2e8f0",
-                fontSize: "14px",
-                marginBottom: "7px",
-              }}
+            <label className="jsx-style-26"
+              
             >
               Username
             </label>
 
-            <input
+            <input className="jsx-style-27"
               type="text"
               value={profileUsername}
               onChange={(event) =>
@@ -2691,55 +2836,31 @@ function ChatPage({
               }
               disabled={profileSaving}
               maxLength={30}
-              style={{
-                width: "100%",
-                boxSizing: "border-box",
-                marginBottom: "7px",
-              }}
+              
             />
 
-            <p
-              style={{
-                color: "#94a3b8",
-                fontSize: "12px",
-                marginTop: 0,
-                marginBottom: "18px",
-              }}
+            <p className="jsx-style-28"
+              
             >
               Only letters, numbers, underscore and dot.
             </p>
 
             {profileError && (
-              <p
-                style={{
-                  color: "#ef4444",
-                  fontSize: "13px",
-                  marginBottom: "14px",
-                }}
+              <p className="jsx-style-29"
+                
               >
                 {profileError}
               </p>
             )}
 
-            <div
-              style={{
-                display: "flex",
-                gap: "10px",
-              }}
+            <div className="jsx-style-30"
+              
             >
-              <button
+              <button className="jsx-style-31"
                 type="button"
                 onClick={closeProfile}
                 disabled={profileSaving}
-                style={{
-                  flex: 1,
-                  padding: "12px",
-                  borderRadius: "10px",
-                  border: "1px solid #303545",
-                  background: "transparent",
-                  color: "#fff",
-                  cursor: "pointer",
-                }}
+                
               >
                 Cancel
               </button>
@@ -2748,10 +2869,8 @@ function ChatPage({
                 type="button"
                 onClick={saveProfile}
                 disabled={profileSaving}
-                className="primary-btn"
-                style={{
-                  flex: 1,
-                }}
+                className="primary-btn jsx-style-32"
+                
               >
                 {profileSaving
                   ? "Saving..."
