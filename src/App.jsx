@@ -5,12 +5,14 @@ import LoginPage from "./components/Auth/LoginPage";
 import SignupPage from "./components/Auth/SignupPage";
 import ProfileModal from "./components/Profile/ProfileModal";
 import Sidebar from "./components/Sidebar/Sidebar";
+import Feed from "./components/Feed/Feed";
 
 import useChatSocket from "./hooks/useChatSocket";
 import useProfile from "./hooks/useProfile";
 import useUsers from "./hooks/useUsers";
 import useMessages from "./hooks/useMessages";
 import useChatActions from "./hooks/useChatActions";
+import usePosts from "./hooks/usePosts";
 
 import "./App.css";
 
@@ -86,6 +88,8 @@ function ChatPage({
   currentUser,
   setCurrentUser,
 }) {
+  const [activeView, setActiveView] = useState("chat");
+
   const [selectedUser, setSelectedUser] =
     useState(null);
 
@@ -207,6 +211,24 @@ function ChatPage({
     setUnreadCounts,
     setCurrentUser,
     setPage,
+  });
+
+  /* =====================================================
+     POSTS / FEED
+  ===================================================== */
+
+  const {
+    posts,
+    loadingPosts,
+    creatingPost,
+    deletingPostId,
+    likingPostId,
+    postError,
+    createPost,
+    deletePost,
+    likePost,
+  } = usePosts({
+    apiUrl: API_URL,
   });
 
   /* =====================================================
@@ -416,6 +438,17 @@ function ChatPage({
     );
   }
 
+  function openChatView() {
+    setActiveView("chat");
+  }
+
+  function openFeedView() {
+    setSelectedUser(null);
+    selectedUserRef.current = null;
+    setTypingUserId(null);
+    setActiveView("feed");
+  }
+
   /* =====================================================
      LOADING
   ===================================================== */
@@ -443,101 +476,220 @@ function ChatPage({
   return (
     <div
       className={`chat-app ${
-        selectedUser
+        selectedUser && activeView === "chat"
           ? "chat-open"
           : ""
       }`}
     >
-      <Sidebar
-        filteredUsers={filteredUsers}
-        selectedUserId={selectedUserId}
-        unreadCounts={unreadCounts}
-        search={search}
-        setSearch={setSearch}
-        genderFilter={genderFilter}
-        setGenderFilter={
-          setGenderFilter
-        }
-        selectUser={selectUser}
-        currentUser={currentUser}
-        showOnline={showOnline}
-        setShowOnline={
-          setShowOnline
-        }
-        openProfile={openProfile}
-        logout={logout}
-        error={error}
-      />
+      <div className="app-view-switcher">
+        <button
+          type="button"
+          className={
+            activeView === "chat"
+              ? "active"
+              : ""
+          }
+          onClick={openChatView}
+        >
+          💬 Chats
+        </button>
 
-      <ChatWindow
-        selectedUser={selectedUser}
-        selectedUserIsOnline={
-          selectedUserIsOnline
-        }
-        selectedUserIsTyping={
-          selectedUserIsTyping
-        }
-        messages={messages}
-        loadingMessages={
-          loadingMessages
-        }
-        message={message}
-        setMessage={setMessage}
-        showEmojiPicker={
-          showEmojiPicker
-        }
-        setShowEmojiPicker={
-          setShowEmojiPicker
-        }
-        notificationEnabled={
-          notificationEnabled
-        }
-        enableNotifications={
-          enableNotifications
-        }
-        messageInputRef={
-          messageInputRef
-        }
-        handleTyping={handleTyping}
-        handleKeyDown={handleKeyDown}
-        sendMessage={
-          sendCurrentMessage
-        }
-        sending={sending}
-        deleteMessage={deleteMessage}
-        messagesEndRef={
-          messagesEndRef
-        }
-        setSelectedUser={
-          setSelectedUser
-        }
-      />
+        <button
+          type="button"
+          className={
+            activeView === "feed"
+              ? "active"
+              : ""
+          }
+          onClick={openFeedView}
+        >
+          📰 Feed
+        </button>
+      </div>
 
-      <ProfileModal
-        showProfile={showProfile}
-        closeProfile={closeProfile}
-        profileName={profileName}
-        setProfileName={
-          setProfileName
-        }
-        profileUsername={
-          profileUsername
-        }
-        setProfileUsername={
-          setProfileUsername
-        }
-        profilePhoto={profilePhoto}
-        handleProfilePhoto={
-          handleProfilePhoto
-        }
-        profileSaving={
-          profileSaving
-        }
-        profileError={
-          profileError
-        }
-        saveProfile={saveProfile}
-      />
+      {activeView === "chat" ? (
+        <>
+          <Sidebar
+            filteredUsers={filteredUsers}
+            selectedUserId={selectedUserId}
+            unreadCounts={unreadCounts}
+            search={search}
+            setSearch={setSearch}
+            genderFilter={genderFilter}
+            setGenderFilter={
+              setGenderFilter
+            }
+            selectUser={selectUser}
+            currentUser={currentUser}
+            showOnline={showOnline}
+            setShowOnline={
+              setShowOnline
+            }
+            openProfile={openProfile}
+            logout={logout}
+            error={error}
+          />
+
+          <ChatWindow
+            selectedUser={selectedUser}
+            selectedUserIsOnline={
+              selectedUserIsOnline
+            }
+            selectedUserIsTyping={
+              selectedUserIsTyping
+            }
+            messages={messages}
+            loadingMessages={
+              loadingMessages
+            }
+            message={message}
+            setMessage={setMessage}
+            showEmojiPicker={
+              showEmojiPicker
+            }
+            setShowEmojiPicker={
+              setShowEmojiPicker
+            }
+            notificationEnabled={
+              notificationEnabled
+            }
+            enableNotifications={
+              enableNotifications
+            }
+            messageInputRef={
+              messageInputRef
+            }
+            handleTyping={handleTyping}
+            handleKeyDown={handleKeyDown}
+            sendMessage={
+              sendCurrentMessage
+            }
+            sending={sending}
+            deleteMessage={deleteMessage}
+            messagesEndRef={
+              messagesEndRef
+            }
+            setSelectedUser={
+              setSelectedUser
+            }
+          />
+
+          <ProfileModal
+            showProfile={showProfile}
+            closeProfile={closeProfile}
+            profileName={profileName}
+            setProfileName={
+              setProfileName
+            }
+            profileUsername={
+              profileUsername
+            }
+            setProfileUsername={
+              setProfileUsername
+            }
+            profilePhoto={profilePhoto}
+            handleProfilePhoto={
+              handleProfilePhoto
+            }
+            profileSaving={
+              profileSaving
+            }
+            profileError={
+              profileError
+            }
+            saveProfile={saveProfile}
+          />
+        </>
+      ) : (
+        <>
+          <aside className="feed-side-panel">
+            <div className="feed-side-header">
+              <h2>mairochat</h2>
+            </div>
+
+            <button
+              type="button"
+              className="feed-nav-profile"
+              onClick={openProfile}
+            >
+              <div className="feed-nav-avatar">
+                {currentUser?.photo ? (
+                  <img
+                    src={currentUser.photo}
+                    alt={`@${currentUser.username}`}
+                  />
+                ) : (
+                  currentUser?.username
+                    ?.charAt(0)
+                    .toUpperCase() || "U"
+                )}
+              </div>
+
+              <div>
+                <strong>
+                  @{currentUser?.username || "user"}
+                </strong>
+                <span>My Profile</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              className="feed-back-chat-btn"
+              onClick={openChatView}
+            >
+              💬 Back to Chats
+            </button>
+
+            <button
+              type="button"
+              className="feed-logout-btn"
+              onClick={logout}
+            >
+              Logout
+            </button>
+          </aside>
+
+          <Feed
+            currentUser={currentUser}
+            posts={posts}
+            loadingPosts={loadingPosts}
+            creatingPost={creatingPost}
+            deletingPostId={deletingPostId}
+            likingPostId={likingPostId}
+            postError={postError}
+            createPost={createPost}
+            deletePost={deletePost}
+            likePost={likePost}
+          />
+
+          <ProfileModal
+            showProfile={showProfile}
+            closeProfile={closeProfile}
+            profileName={profileName}
+            setProfileName={
+              setProfileName
+            }
+            profileUsername={
+              profileUsername
+            }
+            setProfileUsername={
+              setProfileUsername
+            }
+            profilePhoto={profilePhoto}
+            handleProfilePhoto={
+              handleProfilePhoto
+            }
+            profileSaving={
+              profileSaving
+            }
+            profileError={
+              profileError
+            }
+            saveProfile={saveProfile}
+          />
+        </>
+      )}
     </div>
   );
 }

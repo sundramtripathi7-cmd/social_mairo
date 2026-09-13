@@ -25,10 +25,6 @@ function ChatWindow({
     <main className="chat-area">
       {selectedUser ? (
         <>
-          {/* =================================================
-              HEADER
-          ================================================= */}
-
           <header className="chat-header">
             <button
               type="button"
@@ -39,9 +35,22 @@ function ChatWindow({
               ←
             </button>
 
+            {/* Chat header profile photo */}
             <div className="avatar">
-              {selectedUser.initial ||
-                selectedUser.username?.charAt(0).toUpperCase()}
+              {selectedUser.photo ? (
+                <img
+                  src={selectedUser.photo}
+                  alt={`@${selectedUser.username}`}
+                  className="chat-header-photo"
+                />
+              ) : (
+                selectedUser.initial ||
+                selectedUser.name?.charAt(0).toUpperCase() ||
+                selectedUser.username
+                  ?.charAt(0)
+                  .toUpperCase() ||
+                "U"
+              )}
 
               {selectedUserIsOnline && (
                 <span className="online-dot"></span>
@@ -49,9 +58,7 @@ function ChatWindow({
             </div>
 
             <div>
-              <strong>
-                @{selectedUser.username}
-              </strong>
+              <strong>@{selectedUser.username}</strong>
 
               <p>
                 {selectedUserIsTyping
@@ -63,24 +70,18 @@ function ChatWindow({
             </div>
 
             <div className="header-actions">
-              <button type="button">
+              <button type="button" title="Search">
                 🔍
               </button>
 
-              <button type="button">
+              <button type="button" title="More">
                 ⋮
               </button>
             </div>
           </header>
 
-          {/* =================================================
-              MESSAGES
-          ================================================= */}
-
           <section className="messages">
-            <div className="today">
-              Today
-            </div>
+            <div className="today">Today</div>
 
             {loadingMessages ? (
               <div className="no-messages">
@@ -88,8 +89,8 @@ function ChatWindow({
               </div>
             ) : messages.length === 0 ? (
               <div className="no-messages">
-                Start a conversation with{" "}
-                @{selectedUser.username}
+                Start a conversation with @
+                {selectedUser.username}
               </div>
             ) : (
               messages.map((msg) => (
@@ -97,9 +98,7 @@ function ChatWindow({
                   key={msg.id}
                   className={`message ${msg.type}`}
                 >
-                  <p>
-                    {msg.text}
-                  </p>
+                  <p>{msg.text}</p>
 
                   <span>
                     {msg.time}
@@ -127,14 +126,8 @@ function ChatWindow({
               ))
             )}
 
-            {/* AUTO SCROLL TARGET */}
-
             <div ref={messagesEndRef} />
           </section>
-
-          {/* =================================================
-              MESSAGE INPUT
-          ================================================= */}
 
           <div className="message-input">
             {showEmojiPicker && (
@@ -146,14 +139,13 @@ function ChatWindow({
                   onEmojiClick={(emojiObject) => {
                     setMessage(
                       (previous) =>
-                        previous + emojiObject.emoji
+                        previous +
+                        emojiObject.emoji
                     );
                   }}
                 />
               </div>
             )}
-
-            {/* EMOJI */}
 
             <button
               type="button"
@@ -163,11 +155,10 @@ function ChatWindow({
                   (previous) => !previous
                 )
               }
+              title="Emoji"
             >
               😊
             </button>
-
-            {/* NOTIFICATIONS */}
 
             <button
               type="button"
@@ -179,19 +170,18 @@ function ChatWindow({
                   : "Enable notifications"
               }
             >
-              {notificationEnabled ? "🔔" : "🔕"}
+              {notificationEnabled
+                ? "🔔"
+                : "🔕"}
             </button>
-
-            {/* ATTACHMENT */}
 
             <button
               type="button"
               className="input-action"
+              title="Attach file"
             >
               📎
             </button>
-
-            {/* MESSAGE INPUT */}
 
             <input
               ref={messageInputRef}
@@ -201,8 +191,6 @@ function ChatWindow({
               onChange={handleTyping}
               onKeyDown={handleKeyDown}
             />
-
-            {/* SEND */}
 
             <button
               type="button"
@@ -216,17 +204,12 @@ function ChatWindow({
         </>
       ) : (
         <div className="no-chat-selected">
-          <div>
-            💬
-          </div>
+          <div>💬</div>
 
-          <h2>
-            No conversation selected
-          </h2>
+          <h2>No conversation selected</h2>
 
           <p>
-            Create another account
-            to start chatting.
+            Create another account to start chatting.
           </p>
         </div>
       )}

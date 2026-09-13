@@ -1,5 +1,6 @@
 const path = require("path");
 const dns = require("dns");
+const postRoutes = require("./routes/postRoutes");
 
 const dnsServers = ["1.1.1.1", "8.8.8.8"];
 
@@ -135,6 +136,7 @@ app.get("/", (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/messages", messageRoutes);
+app.use("/api/posts", postRoutes);
 
 /* =====================================================
    JWT CHECK FOR SOCKET.IO
