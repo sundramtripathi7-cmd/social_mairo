@@ -2398,3 +2398,111 @@ img {
     min-height: 80px;
   }
 }
+
+
+/* =========================================================
+   FINAL MOBILE CHAT FIX
+   ========================================================= */
+
+@media (max-width: 650px) {
+  .chat-area {
+    display: flex !important;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100dvh;
+    min-width: 100%;
+    transform: translateX(100%);
+    z-index: 20;
+  }
+
+  .chat-app.chat-open .sidebar {
+    display: none !important;
+  }
+
+  .chat-app.chat-open .chat-area {
+    display: flex !important;
+    position: absolute;
+    inset: 0;
+    transform: translateX(0);
+  }
+
+  .mobile-back-btn {
+    display: flex !important;
+  }
+}
+
+/* =====================================================
+   MOBILE AUTH PAGE FIX
+===================================================== */
+
+.auth-page {
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  box-sizing: border-box;
+}
+
+/* =====================================================
+   MOBILE
+===================================================== */
+
+@media (max-width: 600px) {
+  .auth-page {
+    width: 100%;
+    min-height: 100dvh;
+
+    padding: 16px;
+  }
+
+  .auth-card {
+    width: 100%;
+    max-width: 100%;
+
+    padding: 22px 18px;
+    box-sizing: border-box;
+  }
+
+  .auth-card h1 {
+    font-size: 24px;
+  }
+
+  .auth-subtitle {
+    font-size: 13px;
+  }
+
+  .auth-card input,
+  .auth-card select {
+    width: 100%;
+    box-sizing: border-box;
+
+    min-height: 44px;
+    font-size: 14px;
+  }
+
+  .auth-card label {
+    font-size: 12px;
+  }
+
+  .primary-btn {
+    width: 100%;
+    min-height: 44px;
+    font-size: 14px;
+  }
+
+  .switch-text {
+    font-size: 12px;
+  }
+}

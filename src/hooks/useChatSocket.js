@@ -1,5 +1,11 @@
-import { useEffect, useRef } from "react";
-import { io } from "socket.io-client";
+import {
+  useEffect,
+  useRef,
+} from "react";
+
+import {
+  io,
+} from "socket.io-client";
 
 function useChatSocket({
   socketUrl,
@@ -15,57 +21,99 @@ function useChatSocket({
   setTypingUserId,
   socketRef,
 }) {
-  const usersRef = useRef(users);
-  const markReadRef = useRef(
-    markConversationAsRead
-  );
+  const usersRef =
+    useRef(users);
+
+  const markReadRef =
+    useRef(
+      markConversationAsRead
+    );
+
+  /* =====================================================
+     KEEP USERS REF UPDATED
+  ===================================================== */
 
   useEffect(() => {
-    usersRef.current = users;
+    usersRef.current =
+      users;
   }, [users]);
+
+  /* =====================================================
+     KEEP MARK READ REF UPDATED
+  ===================================================== */
 
   useEffect(() => {
     markReadRef.current =
       markConversationAsRead;
-  }, [markConversationAsRead]);
+  }, [
+    markConversationAsRead,
+  ]);
+
+  /* =====================================================
+     SOCKET CONNECTION
+  ===================================================== */
 
   useEffect(() => {
     const token =
-      sessionStorage.getItem("token");
+      localStorage.getItem(
+        "token"
+      );
 
-    if (!token || !currentUserId) {
+    if (
+      !token ||
+      !currentUserId
+    ) {
       return;
     }
 
-    const socket = io(socketUrl, {
-      auth: {
-        token,
-      },
-    });
+    const socket = io(
+      socketUrl,
+      {
+        auth: {
+          token,
+        },
+      }
+    );
 
-    socketRef.current = socket;
+    socketRef.current =
+      socket;
 
-    socket.on("connect", () => {
-      console.log(
-        "Socket connected:",
-        socket.id
-      );
+    /* =================================================
+       CONNECT
+    ================================================= */
 
-      const userId =
-        currentUser?.id ||
-        currentUser?._id;
+    socket.on(
+      "connect",
+      () => {
+        console.log(
+          "Socket connected:",
+          socket.id
+        );
 
-      const saved = userId
-        ? localStorage.getItem(
-            `showOnline_${userId}`
-          )
-        : null;
+        const userId =
+          currentUser?.id ||
+          currentUser?._id;
 
-      socket.emit("join", {
-        showOnline:
-          saved !== "false",
-      });
-    });
+        const saved =
+          userId
+            ? localStorage.getItem(
+                `showOnline_${userId}`
+              )
+            : null;
+
+        socket.emit(
+          "join",
+          {
+            showOnline:
+              saved !== "false",
+          }
+        );
+      }
+    );
+
+    /* =================================================
+       CONNECT ERROR
+    ================================================= */
 
     socket.on(
       "connect_error",
@@ -77,71 +125,111 @@ function useChatSocket({
       }
     );
 
+    /* =================================================
+       PRESENCE SNAPSHOT
+    ================================================= */
+
     socket.on(
       "presenceSnapshot",
-      ({ onlineUsers: list = [] }) => {
+      ({
+        onlineUsers:
+          list = [],
+      }) => {
         setOnlineUsers(
           list.map(String)
         );
       }
     );
 
+    /* =================================================
+       PRESENCE UPDATE
+    ================================================= */
+
     socket.on(
       "presenceUpdate",
-      ({ onlineUsers: list = [] }) => {
+      ({
+        onlineUsers:
+          list = [],
+      }) => {
         setOnlineUsers(
           list.map(String)
         );
       }
     );
+
+    /* =================================================
+       NEW MESSAGE
+    ================================================= */
 
     socket.on(
       "newMessage",
       (newMessage) => {
-        const senderId = String(
-          newMessage.sender
-        );
+        const senderId =
+          String(
+            newMessage.sender
+          );
 
-        const messageId = String(
-          newMessage.id ||
-            newMessage._id
-        );
+        const messageId =
+          String(
+            newMessage.id ||
+              newMessage._id
+          );
 
-        const formattedMessage = {
-          id: messageId,
-          text: newMessage.text,
-          type: "received",
-          time:
-            newMessage.time ||
-            new Date(
-              newMessage.createdAt
-            ).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
-          createdAt:
-            newMessage.createdAt,
-          read: Boolean(
-            newMessage.read
-          ),
-        };
+        const formattedMessage =
+          {
+            id: messageId,
+
+            text:
+              newMessage.text,
+
+            type: "received",
+
+            time:
+              newMessage.time ||
+              new Date(
+                newMessage.createdAt
+              ).toLocaleTimeString(
+                [],
+                {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }
+              ),
+
+            createdAt:
+              newMessage.createdAt,
+
+            read: Boolean(
+              newMessage.read
+            ),
+          };
 
         const selected =
           selectedUserRef.current;
 
-        const selectedId = String(
-          selected?.id ||
-            selected?._id ||
-            ""
-        );
+        const selectedId =
+          String(
+            selected?.id ||
+              selected?._id ||
+              ""
+          );
 
-        if (senderId === selectedId) {
+        /* =============================================
+           CURRENT CHAT OPEN
+        ============================================= */
+
+        if (
+          senderId ===
+          selectedId
+        ) {
           setMessages(
             (previous) => {
               const exists =
                 previous.some(
                   (msg) =>
-                    String(msg.id) ===
+                    String(
+                      msg.id
+                    ) ===
                     messageId
                 );
 
@@ -163,10 +251,15 @@ function useChatSocket({
           return;
         }
 
+        /* =============================================
+           BROWSER NOTIFICATION
+        ============================================= */
+
         if (
           typeof window !==
             "undefined" &&
-          "Notification" in window &&
+          "Notification" in
+            window &&
           Notification.permission ===
             "granted" &&
           typeof document !==
@@ -180,7 +273,8 @@ function useChatSocket({
                 String(
                   user.id ||
                     user._id
-                ) === senderId
+                ) ===
+                senderId
             );
 
           try {
@@ -191,10 +285,13 @@ function useChatSocket({
               {
                 body:
                   newMessage.text,
+
                 icon:
                   sender?.photo ||
                   undefined,
-                tag: `message-${senderId}`,
+
+                tag:
+                  `message-${senderId}`,
               }
             );
           } catch (error) {
@@ -205,14 +302,24 @@ function useChatSocket({
           }
         }
 
+        /* =============================================
+           UNREAD COUNT
+        ============================================= */
+
         setUnreadCounts(
           (previous) => ({
             ...previous,
+
             [senderId]:
-              (previous[senderId] ||
-                0) + 1,
+              (previous[
+                senderId
+              ] || 0) + 1,
           })
         );
+
+        /* =============================================
+           UPDATE USER LAST MESSAGE
+        ============================================= */
 
         setUsers(
           (previousUsers) =>
@@ -233,8 +340,10 @@ function useChatSocket({
 
                 return {
                   ...user,
+
                   lastMessage:
                     newMessage.text,
+
                   time:
                     newMessage.time ||
                     new Date(
@@ -243,8 +352,7 @@ function useChatSocket({
                       [],
                       {
                         hour: "2-digit",
-                        minute:
-                          "2-digit",
+                        minute: "2-digit",
                       }
                     ),
                 };
@@ -253,6 +361,10 @@ function useChatSocket({
         );
       }
     );
+
+    /* =================================================
+       MESSAGE DELETED
+    ================================================= */
 
     socket.on(
       "messageDeleted",
@@ -268,9 +380,16 @@ function useChatSocket({
       }
     );
 
+    /* =================================================
+       TYPING
+    ================================================= */
+
     socket.on(
       "userTyping",
-      ({ userId, isTyping }) => {
+      ({
+        userId,
+        isTyping,
+      }) => {
         const typingId =
           String(userId);
 
@@ -299,6 +418,10 @@ function useChatSocket({
       }
     );
 
+    /* =================================================
+       READ RECEIPTS
+    ================================================= */
+
     socket.on(
       "messagesRead",
       ({ userId }) => {
@@ -326,7 +449,8 @@ function useChatSocket({
           (previous) =>
             previous.map(
               (msg) =>
-                msg.type === "sent"
+                msg.type ===
+                "sent"
                   ? {
                       ...msg,
                       read: true,
@@ -337,6 +461,10 @@ function useChatSocket({
       }
     );
 
+    /* =================================================
+       DISCONNECT
+    ================================================= */
+
     socket.on(
       "disconnect",
       () => {
@@ -346,9 +474,15 @@ function useChatSocket({
       }
     );
 
+    /* =================================================
+       CLEANUP
+    ================================================= */
+
     return () => {
       socket.disconnect();
-      socketRef.current = null;
+
+      socketRef.current =
+        null;
     };
   }, [
     socketUrl,

@@ -239,14 +239,17 @@ function Sidebar({
         </button>
 
         <button
-          className="logout-btn"
-          onClick={(event) => {
-            event.stopPropagation();
-            logout();
-          }}
-        >
-          Logout
-        </button>
+  type="button"
+  className="logout-btn"
+  onClick={(event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    logout();
+  }}
+>
+  Logout
+</button>
       </div>
     </aside>
   );

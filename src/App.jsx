@@ -30,7 +30,7 @@ const SOCKET_URL =
 
 function App() {
   const [page, setPage] = useState(
-    sessionStorage.getItem("token")
+    localStorage.getItem("token")
       ? "chat"
       : "login"
   );
@@ -38,10 +38,27 @@ function App() {
   const [currentUser, setCurrentUser] =
     useState(() => {
       const savedUser =
+        localStorage.getItem("user") ||
         sessionStorage.getItem("user");
+
+      const oldSessionToken =
+        sessionStorage.getItem("token");
+
+      if (oldSessionToken) {
+        localStorage.setItem(
+          "token",
+          oldSessionToken
+        );
+        sessionStorage.removeItem("token");
+      }
 
       if (!savedUser) {
         return null;
+      }
+
+      if (!localStorage.getItem("user")) {
+        localStorage.setItem("user", savedUser);
+        sessionStorage.removeItem("user");
       }
 
       try {
@@ -50,6 +67,32 @@ function App() {
         return null;
       }
     });
+
+  /*
+    Keep login persistent even though the existing
+    LoginPage/SignupPage still write to sessionStorage.
+    After a successful login/signup, copy those values
+    into localStorage. Logout removes both storages.
+  */
+  useEffect(() => {
+    const token =
+      sessionStorage.getItem("token") ||
+      localStorage.getItem("token");
+
+    if (token) {
+      localStorage.setItem("token", token);
+    }
+
+    if (currentUser) {
+      localStorage.setItem(
+        "user",
+        JSON.stringify(currentUser)
+      );
+    } else {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+    }
+  }, [currentUser]);
 
   return (
     <div className="app">
@@ -164,11 +207,12 @@ function ChatPage({
     filteredUsers,
     onlineUsers,
     setOnlineUsers,
-  } = useUsers({
+   } = useUsers({
     apiUrl: API_URL,
+    currentUser,
+    currentUserId,
     setSelectedUser,
   });
-
   /* =====================================================
      MESSAGES
   ===================================================== */
@@ -198,7 +242,6 @@ function ChatPage({
     handleTyping,
     handleKeyDown,
     handleSendMessage,
-    logout,
   } = useChatActions({
     selectedUserId,
     setSelectedUser,
@@ -212,7 +255,31 @@ function ChatPage({
     setCurrentUser,
     setPage,
   });
+  
+  function logout() {
+  console.log("LOGOUT CLICKED");
 
+  if (socketRef.current) {
+    socketRef.current.disconnect();
+    socketRef.current = null;
+  }
+
+  // Local storage clear
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+
+  // Session storage clear
+  sessionStorage.removeItem("token");
+  sessionStorage.removeItem("user");
+
+  // Chat state reset
+  setSelectedUser(null);
+  selectedUserRef.current = null;
+
+  // Login page par bhejo
+  setCurrentUser(null);
+  setPage("login");
+}
   /* =====================================================
      POSTS / FEED
   ===================================================== */

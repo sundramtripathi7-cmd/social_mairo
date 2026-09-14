@@ -22,20 +22,36 @@ function ChatWindow({
   setSelectedUser,
 }) {
   return (
-    <main className="chat-area">
+    <main
+      className="chat-area"
+      style={
+        selectedUser
+          ? {
+              display: "flex",
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              zIndex: 50,
+              transform: "translateX(0)",
+            }
+          : undefined
+      }
+    >
       {selectedUser ? (
         <>
           <header className="chat-header">
             <button
               type="button"
               className="mobile-back-btn"
-              onClick={() => setSelectedUser(null)}
+              onClick={() => {
+                setSelectedUser(null);
+              }}
               aria-label="Back to chats"
             >
               ←
             </button>
 
-            {/* Chat header profile photo */}
             <div className="avatar">
               {selectedUser.photo ? (
                 <img
@@ -45,7 +61,9 @@ function ChatWindow({
                 />
               ) : (
                 selectedUser.initial ||
-                selectedUser.name?.charAt(0).toUpperCase() ||
+                selectedUser.name
+                  ?.charAt(0)
+                  .toUpperCase() ||
                 selectedUser.username
                   ?.charAt(0)
                   .toUpperCase() ||
@@ -58,7 +76,9 @@ function ChatWindow({
             </div>
 
             <div>
-              <strong>@{selectedUser.username}</strong>
+              <strong>
+                @{selectedUser.username}
+              </strong>
 
               <p>
                 {selectedUserIsTyping
@@ -70,18 +90,26 @@ function ChatWindow({
             </div>
 
             <div className="header-actions">
-              <button type="button" title="Search">
+              <button
+                type="button"
+                title="Search"
+              >
                 🔍
               </button>
 
-              <button type="button" title="More">
+              <button
+                type="button"
+                title="More"
+              >
                 ⋮
               </button>
             </div>
           </header>
 
           <section className="messages">
-            <div className="today">Today</div>
+            <div className="today">
+              Today
+            </div>
 
             {loadingMessages ? (
               <div className="no-messages">
@@ -89,8 +117,8 @@ function ChatWindow({
               </div>
             ) : messages.length === 0 ? (
               <div className="no-messages">
-                Start a conversation with @
-                {selectedUser.username}
+                Start a conversation with{" "}
+                @{selectedUser.username}
               </div>
             ) : (
               messages.map((msg) => (
@@ -106,7 +134,9 @@ function ChatWindow({
                     {msg.type === "sent" && (
                       <span>
                         {" "}
-                        {msg.read ? "✓✓" : "✓"}
+                        {msg.read
+                          ? "✓✓"
+                          : "✓"}
                       </span>
                     )}
                   </span>
@@ -202,17 +232,7 @@ function ChatWindow({
             </button>
           </div>
         </>
-      ) : (
-        <div className="no-chat-selected">
-          <div>💬</div>
-
-          <h2>No conversation selected</h2>
-
-          <p>
-            Create another account to start chatting.
-          </p>
-        </div>
-      )}
+      ) : null}
     </main>
   );
 }

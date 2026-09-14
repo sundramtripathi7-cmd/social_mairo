@@ -23,7 +23,7 @@ function LoginPage({ setPage, setCurrentUser, apiUrl }) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          email,
+          email: email.trim().toLowerCase(),
           password,
         }),
       });
@@ -35,13 +35,30 @@ function LoginPage({ setPage, setCurrentUser, apiUrl }) {
         return;
       }
 
+      // =====================================================
+      // SAVE LOGIN IN BOTH STORAGE
+      // =====================================================
+
+      localStorage.setItem("token", data.token);
+      localStorage.setItem(
+        "user",
+        JSON.stringify(data.user)
+      );
+
       sessionStorage.setItem("token", data.token);
-      sessionStorage.setItem("user", JSON.stringify(data.user));
+      sessionStorage.setItem(
+        "user",
+        JSON.stringify(data.user)
+      );
+
+      // =====================================================
+      // UPDATE APP STATE
+      // =====================================================
 
       setCurrentUser(data.user);
       setPage("chat");
     } catch (error) {
-      console.error(error);
+      console.error("Login error:", error);
       setError("Cannot connect to server.");
     } finally {
       setLoading(false);
@@ -58,6 +75,7 @@ function LoginPage({ setPage, setCurrentUser, apiUrl }) {
   return (
     <div className="auth-page">
       <div className="auth-card">
+
         <div className="auth-logo">💬</div>
 
         <h1>Welcome Back</h1>
@@ -66,15 +84,23 @@ function LoginPage({ setPage, setCurrentUser, apiUrl }) {
           Login to continue chatting
         </p>
 
-        <form>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            handleLogin();
+          }}
+        >
           <label>Email</label>
 
           <input
             type="email"
             placeholder="Enter your email"
             value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            onChange={(event) =>
+              setEmail(event.target.value)
+            }
             onKeyDown={handleKeyDown}
+            autoComplete="email"
           />
 
           <label>Password</label>
@@ -83,8 +109,11 @@ function LoginPage({ setPage, setCurrentUser, apiUrl }) {
             type="password"
             placeholder="Enter your password"
             value={password}
-            onChange={(event) => setPassword(event.target.value)}
+            onChange={(event) =>
+              setPassword(event.target.value)
+            }
             onKeyDown={handleKeyDown}
+            autoComplete="current-password"
           />
 
           <div className="forgot">
@@ -98,12 +127,13 @@ function LoginPage({ setPage, setCurrentUser, apiUrl }) {
           )}
 
           <button
-            type="button"
+            type="submit"
             className="primary-btn"
-            onClick={handleLogin}
             disabled={loading}
           >
-            {loading ? "Logging in..." : "Login"}
+            {loading
+              ? "Logging in..."
+              : "Login"}
           </button>
         </form>
 
@@ -117,6 +147,7 @@ function LoginPage({ setPage, setCurrentUser, apiUrl }) {
             Sign up
           </button>
         </p>
+
       </div>
     </div>
   );
