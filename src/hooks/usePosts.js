@@ -24,6 +24,7 @@ function usePosts({ apiUrl }) {
     }
 
     try {
+      setLoadingPosts(true);
       setPostError("");
 
       const response = await fetch(
@@ -43,7 +44,21 @@ function usePosts({ apiUrl }) {
         );
       }
 
-      setPosts(data.posts || []);
+      const now = Date.now();
+
+      const activePosts = (data.posts || []).filter(
+        (post) => {
+          if (!post.expiresAt) {
+            return true;
+          }
+
+          return (
+            new Date(post.expiresAt).getTime() > now
+          );
+        }
+      );
+
+      setPosts(activePosts);
     } catch (error) {
       console.error("Load posts error:", error);
 

@@ -1796,6 +1796,13 @@ img {
   font-weight: 800;
 }
 
+.feed-side-note {
+  margin: 8px 0 0;
+  color: #8696a0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .feed-nav-profile {
   width: 100%;
   display: flex;
@@ -1923,6 +1930,22 @@ img {
   margin: 5px 0 0;
   color: #8696a0;
   font-size: 13px;
+}
+
+.feed-policy-banner {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  color: #d1e3dc;
+  background: #10241c;
+  border: 1px solid #1d4a38;
+  border-radius: 9px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.feed-policy-banner strong {
+  color: #7ddea8;
+  font-weight: 800;
 }
 
 .feed-refresh-btn {
@@ -2074,6 +2097,13 @@ img {
   cursor: not-allowed;
 }
 
+.create-post-expiry-note {
+  margin-top: 10px;
+  color: #8696a0;
+  font-size: 11px;
+  font-weight: 600;
+}
+
 .post-image-preview {
   position: relative;
   margin-top: 12px;
@@ -2197,6 +2227,17 @@ img {
   width: 100%;
   max-height: 620px;
   object-fit: contain;
+}
+
+.post-expiry-bar {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  border-top: 1px solid #26343b;
+  color: #8eb9a8;
+  font-size: 11px;
+  font-weight: 700;
+  background: #0e1a16;
 }
 
 .post-actions {

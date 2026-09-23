@@ -44,8 +44,19 @@ function authenticateToken(req, res, next) {
 }
 
 /*
+  Remove posts that already passed expiresAt
+  (backup while MongoDB TTL catches up).
+*/
+async function removeExpiredPosts() {
+  await Post.deleteMany({
+    expiresAt: { $lte: new Date() },
+  });
+}
+
+/*
   CREATE POST
   POST /api/posts
+  Posts always expire after 7 days (only option).
 */
 router.post("/", authenticateToken, async (req, res) => {
   try {
@@ -58,22 +69,23 @@ router.post("/", authenticateToken, async (req, res) => {
       });
     }
 
+    const now = new Date();
+
     const post = await Post.create({
       author: req.userId,
       text: text?.trim() || "",
       image: image || "",
+      expiresAt: Post.getDefaultExpiresAt(now),
     });
 
     const populatedPost = await Post.findById(
       post._id
-    ).populate(
-      "author",
-      "username photo"
-    );
+    ).populate("author", "username photo");
 
     return res.status(201).json({
       success: true,
-      message: "Post created successfully.",
+      message:
+        "Post created. It will auto-delete in 7 days.",
       post: populatedPost,
     });
   } catch (error) {
@@ -92,11 +104,12 @@ router.post("/", authenticateToken, async (req, res) => {
 */
 router.get("/", authenticateToken, async (req, res) => {
   try {
-    const posts = await Post.find()
-      .populate(
-        "author",
-        "username photo"
-      )
+    await removeExpiredPosts();
+
+    const posts = await Post.find({
+      expiresAt: { $gt: new Date() },
+    })
+      .populate("author", "username photo")
       .sort({
         createdAt: -1,
       });
@@ -104,6 +117,7 @@ router.get("/", authenticateToken, async (req, res) => {
     return res.json({
       success: true,
       posts,
+      autoDeleteDays: 7,
     });
   } catch (error) {
     console.error("Get posts error:", error);
@@ -182,6 +196,24 @@ router.post(
         return res.status(404).json({
           success: false,
           message: "Post not found.",
+        });
+      }
+
+      if (!post.expiresAt && post.createdAt) {
+        post.expiresAt = Post.getDefaultExpiresAt(
+          post.createdAt
+        );
+      }
+
+      if (
+        post.expiresAt &&
+        post.expiresAt <= new Date()
+      ) {
+        await Post.findByIdAndDelete(post._id);
+
+        return res.status(404).json({
+          success: false,
+          message: "Post has expired and was deleted.",
         });
       }
 

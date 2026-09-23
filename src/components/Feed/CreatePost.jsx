@@ -7,14 +7,12 @@ function CreatePost({
 }) {
   const [text, setText] = useState("");
   const [image, setImage] = useState("");
-  const [imageName, setImageName] =
-    useState("");
+  const [imageName, setImageName] = useState("");
 
   const fileInputRef = useRef(null);
 
   function handleImageChange(event) {
-    const file =
-      event.target.files?.[0];
+    const file = event.target.files?.[0];
 
     if (!file) {
       return;
@@ -25,14 +23,8 @@ function CreatePost({
       return;
     }
 
-    /*
-      Keep image size reasonable because
-      we are storing it as base64 for now.
-    */
     if (file.size > 5 * 1024 * 1024) {
-      alert(
-        "Image must be smaller than 5 MB."
-      );
+      alert("Image must be smaller than 5 MB.");
       return;
     }
 
@@ -62,11 +54,10 @@ function CreatePost({
       return;
     }
 
-    const success =
-      await onCreatePost({
-        text,
-        image,
-      });
+    const success = await onCreatePost({
+      text,
+      image,
+    });
 
     if (success) {
       setText("");
@@ -80,9 +71,8 @@ function CreatePost({
   }
 
   const userInitial =
-    currentUser?.username
-      ?.charAt(0)
-      .toUpperCase() || "U";
+    currentUser?.username?.charAt(0).toUpperCase() ||
+    "U";
 
   return (
     <section className="create-post-card">
@@ -102,8 +92,7 @@ function CreatePost({
           <strong>
             @{currentUser?.username || "user"}
           </strong>
-
-          <span>What's on your mind?</span>
+          <span>Share something new</span>
         </div>
       </div>
 
@@ -121,19 +110,18 @@ function CreatePost({
           }?`}
           maxLength={2000}
           disabled={creating}
+          aria-label="Post text"
         />
 
         {image && (
           <div className="post-image-preview">
-            <img
-              src={image}
-              alt="Preview"
-            />
+            <img src={image} alt="Preview" />
 
             <button
               type="button"
               onClick={removeImage}
               title="Remove image"
+              aria-label="Remove image"
               disabled={creating}
             >
               ×
@@ -146,6 +134,10 @@ function CreatePost({
             📷 {imageName}
           </div>
         )}
+
+        <div className="create-post-expiry-note">
+          Auto-deletes in 7 days (only option)
+        </div>
 
         <div className="create-post-footer">
           <div className="create-post-options">
@@ -174,13 +166,10 @@ function CreatePost({
             type="submit"
             className="create-post-btn"
             disabled={
-              creating ||
-              (!text.trim() && !image)
+              creating || (!text.trim() && !image)
             }
           >
-            {creating
-              ? "Posting..."
-              : "Post"}
+            {creating ? "Posting..." : "Post"}
           </button>
         </div>
       </form>

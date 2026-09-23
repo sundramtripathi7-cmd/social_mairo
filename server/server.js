@@ -118,6 +118,7 @@ const io = new Server(server, {
 
 const User = require("./models/user");
 const Message = require("./models/Message");
+const Post = require("./models/Post");
 
 /* =====================================================
    BASIC ROUTE
@@ -455,11 +456,64 @@ console.log(
     : "NO"
 );
 
+async function cleanupExpiredFeedPosts() {
+  try {
+    const result = await Post.deleteMany({
+      expiresAt: { $lte: new Date() },
+    });
+
+    if (result.deletedCount > 0) {
+      console.log(
+        `Auto-deleted ${result.deletedCount} expired feed post(s).`
+      );
+    }
+
+    /*
+      Backfill older posts that were created
+      before expiresAt existed (7 days from createdAt).
+    */
+    const postsMissingExpiry = await Post.find({
+      $or: [
+        { expiresAt: { $exists: false } },
+        { expiresAt: null },
+      ],
+    }).select("_id createdAt");
+
+    for (const post of postsMissingExpiry) {
+      const expiresAt = Post.getDefaultExpiresAt(
+        post.createdAt || new Date()
+      );
+
+      if (expiresAt <= new Date()) {
+        await Post.findByIdAndDelete(post._id);
+      } else {
+        await Post.updateOne(
+          { _id: post._id },
+          { $set: { expiresAt } }
+        );
+      }
+    }
+  } catch (error) {
+    console.error(
+      "Feed auto-delete cleanup error:",
+      error.message
+    );
+  }
+}
+
 mongoose
   .connect(MONGO_URI)
-  .then(() => {
+  .then(async () => {
     console.log(
       "MongoDB connected successfully!"
+    );
+
+    await cleanupExpiredFeedPosts();
+
+    /* Run every hour so expired posts leave the feed. */
+    setInterval(
+      cleanupExpiredFeedPosts,
+      60 * 60 * 1000
     );
 
     /* ===============================================

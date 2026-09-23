@@ -1,3 +1,37 @@
+function getTimeLeftLabel(expiresAt) {
+  if (!expiresAt) {
+    return "Deletes in 7 days";
+  }
+
+  const end = new Date(expiresAt).getTime();
+  const now = Date.now();
+  const diffMs = end - now;
+
+  if (diffMs <= 0) {
+    return "Deleting soon";
+  }
+
+  const totalHours = Math.ceil(
+    diffMs / (1000 * 60 * 60)
+  );
+
+  if (totalHours < 24) {
+    if (totalHours <= 1) {
+      return "Deletes in under 1 hour";
+    }
+
+    return `Deletes in ${totalHours} hours`;
+  }
+
+  const days = Math.ceil(totalHours / 24);
+
+  if (days === 1) {
+    return "Deletes tomorrow";
+  }
+
+  return `Deletes in ${days} days`;
+}
+
 function PostCard({
   post,
   currentUser,
@@ -9,33 +43,25 @@ function PostCard({
   const author = post.author || {};
 
   const currentUserId = String(
-    currentUser?.id ||
-      currentUser?._id ||
-      ""
+    currentUser?.id || currentUser?._id || ""
   );
 
   const authorId = String(
-    author._id ||
-      author.id ||
-      ""
+    author._id || author.id || ""
   );
 
-  const isOwnPost =
-    currentUserId === authorId;
+  const isOwnPost = currentUserId === authorId;
 
   const likes = Array.isArray(post.likes)
     ? post.likes
     : [];
 
   const isLiked = likes.some(
-    (userId) =>
-      String(userId) === currentUserId
+    (userId) => String(userId) === currentUserId
   );
 
   const formattedTime = post.createdAt
-    ? new Date(
-        post.createdAt
-      ).toLocaleString([], {
+    ? new Date(post.createdAt).toLocaleString([], {
         day: "numeric",
         month: "short",
         hour: "2-digit",
@@ -43,9 +69,24 @@ function PostCard({
       })
     : "";
 
+  const expiryLabel = getTimeLeftLabel(
+    post.expiresAt
+  );
+
+  async function handleDelete() {
+    const confirmed = window.confirm(
+      "Delete this post now? Otherwise it will auto-delete after 7 days."
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    await onDelete(post._id);
+  }
+
   return (
     <article className="post-card">
-      {/* POST HEADER */}
       <div className="post-header">
         <div className="post-author">
           <div className="post-avatar">
@@ -55,9 +96,8 @@ function PostCard({
                 alt={`@${author.username}`}
               />
             ) : (
-              author.username
-                ?.charAt(0)
-                .toUpperCase() || "U"
+              author.username?.charAt(0).toUpperCase() ||
+              "U"
             )}
           </div>
 
@@ -65,10 +105,7 @@ function PostCard({
             <strong>
               @{author.username || "user"}
             </strong>
-
-            <span>
-              {formattedTime}
-            </span>
+            <span>{formattedTime}</span>
           </div>
         </div>
 
@@ -76,25 +113,20 @@ function PostCard({
           <button
             type="button"
             className="post-delete-btn"
-            onClick={() =>
-              onDelete(post._id)
-            }
+            onClick={handleDelete}
             disabled={deleting}
-            title="Delete post"
+            title="Delete post now"
+            aria-label="Delete post now"
           >
-            {deleting ? "..." : "⋮"}
+            {deleting ? "..." : "🗑"}
           </button>
         )}
       </div>
 
-      {/* POST TEXT */}
       {post.text && (
-        <div className="post-text">
-          {post.text}
-        </div>
+        <div className="post-text">{post.text}</div>
       )}
 
-      {/* POST IMAGE */}
       {post.image && (
         <div className="post-image-container">
           <img
@@ -105,45 +137,24 @@ function PostCard({
         </div>
       )}
 
-      {/* POST ACTIONS */}
+      <div className="post-expiry-bar">
+        <span>{expiryLabel}</span>
+      </div>
+
       <div className="post-actions">
         <button
           type="button"
           className={`post-action-btn ${
-            isLiked
-              ? "liked"
-              : ""
+            isLiked ? "liked" : ""
           }`}
-          onClick={() =>
-            onLike(post._id)
-          }
+          onClick={() => onLike(post._id)}
           disabled={liking}
+          aria-label={
+            isLiked ? "Unlike post" : "Like post"
+          }
         >
           {isLiked ? "❤️" : "🤍"}
-
-          <span>
-            {likes.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          className="post-action-btn"
-          disabled
-          title="Comments coming soon"
-        >
-          💬
-          <span>0</span>
-        </button>
-
-        <button
-          type="button"
-          className="post-action-btn"
-          disabled
-          title="Share coming soon"
-        >
-          ↗️
-          <span>Share</span>
+          <span>{likes.length}</span>
         </button>
       </div>
     </article>

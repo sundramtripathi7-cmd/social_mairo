@@ -64,6 +64,7 @@ function App() {
       {page === "signup" && (
         <SignupPage
           setPage={setPage}
+          setCurrentUser={setCurrentUser}
           apiUrl={API_URL}
         />
       )}
@@ -227,6 +228,7 @@ function ChatPage({
     createPost,
     deletePost,
     likePost,
+    loadPosts,
   } = usePosts({
     apiUrl: API_URL,
   });
@@ -605,6 +607,9 @@ function ChatPage({
           <aside className="feed-side-panel">
             <div className="feed-side-header">
               <h2>mairochat</h2>
+              <p className="feed-side-note">
+                Feed posts auto-delete after 7 days
+              </p>
             </div>
 
             <button
@@ -661,6 +666,7 @@ function ChatPage({
             createPost={createPost}
             deletePost={deletePost}
             likePost={likePost}
+            loadPosts={loadPosts}
           />
 
           <ProfileModal

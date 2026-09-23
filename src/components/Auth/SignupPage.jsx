@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-function SignupPage({ setPage, apiUrl }) {
+function SignupPage({ setPage, setCurrentUser, apiUrl }) {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -166,6 +166,10 @@ function SignupPage({ setPage, apiUrl }) {
         JSON.stringify(data.user)
       );
 
+      if (setCurrentUser) {
+        setCurrentUser(data.user);
+      }
+
       setPage("chat");
     } catch (error) {
       console.error(error);
@@ -192,7 +196,7 @@ function SignupPage({ setPage, apiUrl }) {
         <h1>Create Account</h1>
 
         <p className="auth-subtitle">
-          Join the conversation
+          Join chats and the 7-day auto-delete feed
         </p>
 
         <form>
