@@ -50,11 +50,18 @@ function PostCard({
     author._id || author.id || ""
   );
 
-  const isOwnPost = currentUserId === authorId;
+  const isOwnPost =
+    Boolean(currentUserId) &&
+    currentUserId === authorId;
 
   const likes = Array.isArray(post.likes)
     ? post.likes
     : [];
+
+  const likesCount =
+    typeof post.likesCount === "number"
+      ? post.likesCount
+      : likes.length;
 
   const isLiked = likes.some(
     (userId) => String(userId) === currentUserId
@@ -75,7 +82,7 @@ function PostCard({
 
   async function handleDelete() {
     const confirmed = window.confirm(
-      "Delete this post now? Otherwise it will auto-delete after 7 days."
+      "Delete this post now?"
     );
 
     if (!confirmed) {
@@ -115,8 +122,8 @@ function PostCard({
             className="post-delete-btn"
             onClick={handleDelete}
             disabled={deleting}
-            title="Delete post now"
-            aria-label="Delete post now"
+            title="Delete post"
+            aria-label="Delete post"
           >
             {deleting ? "..." : "🗑"}
           </button>
@@ -154,8 +161,22 @@ function PostCard({
           }
         >
           {isLiked ? "❤️" : "🤍"}
-          <span>{likes.length}</span>
+          <span>{likesCount}</span>
         </button>
+
+        {isOwnPost && (
+          <button
+            type="button"
+            className="post-action-btn post-delete-action"
+            onClick={handleDelete}
+            disabled={deleting}
+          >
+            🗑️
+            <span>
+              {deleting ? "Deleting..." : "Delete"}
+            </span>
+          </button>
+        )}
       </div>
     </article>
   );

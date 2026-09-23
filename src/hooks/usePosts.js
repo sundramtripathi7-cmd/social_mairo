@@ -58,7 +58,15 @@ function usePosts({ apiUrl }) {
         }
       );
 
-      setPosts(activePosts);
+      .setPosts(activePosts.map((post) => ({
+        ...post,
+        likes: Array.isArray(post.likes)
+          ? post.likes
+          : [],
+        likesCount: Array.isArray(post.likes)
+          ? post.likes.length
+          : 0,
+      })));
     } catch (error) {
       console.error("Load posts error:", error);
 
@@ -115,9 +123,21 @@ function usePosts({ apiUrl }) {
         }
       );
 
-      const data = await response.json();
+      let data = {};
+
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
+      }
 
       if (!response.ok) {
+        if (response.status === 413) {
+          throw new Error(
+            "Photo is too large. Try a smaller image."
+          );
+        }
+
         throw new Error(
           data.message || "Could not create post."
         );
@@ -125,7 +145,15 @@ function usePosts({ apiUrl }) {
 
       if (data.post) {
         setPosts((previousPosts) => [
-          data.post,
+          {
+            ...data.post,
+            likes: Array.isArray(data.post.likes)
+              ? data.post.likes
+              : [],
+            likesCount: Array.isArray(data.post.likes)
+              ? data.post.likes.length
+              : 0,
+          },
           ...previousPosts,
         ]);
       }
@@ -137,8 +165,13 @@ function usePosts({ apiUrl }) {
         error
       );
 
+      const message =
+        error.message || "Could not create post.";
+
       setPostError(
-        error.message || "Could not create post."
+        message.includes("Failed to fetch")
+          ? "Could not upload post. Try a smaller photo."
+          : message
       );
 
       return false;
@@ -218,6 +251,7 @@ function usePosts({ apiUrl }) {
 
     try {
       setLikingPostId(postId);
+      setPostError("");
 
       const response = await fetch(
         `${apiUrl}/posts/${postId}/like`,
@@ -237,57 +271,61 @@ function usePosts({ apiUrl }) {
         );
       }
 
+      const savedUser = JSON.parse(
+        sessionStorage.getItem("user") || "null"
+      );
+
+      const currentUserId = String(
+        savedUser?.id || savedUser?._id || ""
+      );
+
       setPosts((previousPosts) =>
         previousPosts.map((post) => {
-          if (
-            String(post._id) !==
-            String(postId)
-          ) {
+          if (String(post._id) !== String(postId)) {
             return post;
           }
 
-          const likes = Array.isArray(
-            post.likes
-          )
+          if (Array.isArray(data.likes)) {
+            return {
+              ...post,
+              likes: data.likes,
+              likesCount:
+                typeof data.likesCount === "number"
+                  ? data.likesCount
+                  : data.likes.length,
+            };
+          }
+
+          let likes = Array.isArray(post.likes)
             ? [...post.likes]
             : [];
 
-          const currentUserId =
-            JSON.parse(
-              sessionStorage.getItem("user") ||
-                "null"
-            )?.id;
-
-          const existingIndex =
-            likes.findIndex(
-              (id) =>
-                String(id) ===
-                String(currentUserId)
-            );
+          const existingIndex = likes.findIndex(
+            (id) => String(id) === currentUserId
+          );
 
           if (data.liked) {
-            if (existingIndex === -1) {
+            if (existingIndex === -1 && currentUserId) {
               likes.push(currentUserId);
             }
-          } else if (
-            existingIndex !== -1
-          ) {
+          } else if (existingIndex !== -1) {
             likes.splice(existingIndex, 1);
           }
 
           return {
             ...post,
             likes,
+            likesCount:
+              typeof data.likesCount === "number"
+                ? data.likesCount
+                : likes.length,
           };
         })
       );
 
       return true;
     } catch (error) {
-      console.error(
-        "Like post error:",
-        error
-      );
+      console.error("Like post error:", error);
 
       setPostError(
         error.message || "Could not like post."

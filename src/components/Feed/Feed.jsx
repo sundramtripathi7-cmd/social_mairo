@@ -43,7 +43,8 @@ function Feed({
         >
           <strong>Auto-delete:</strong> Posts stay
           visible for 7 days, then are removed
-          automatically. This is the only option.
+          automatically. You can also delete your own
+          posts manually anytime.
         </div>
 
         <CreatePost

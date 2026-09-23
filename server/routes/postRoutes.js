@@ -69,6 +69,29 @@ router.post("/", authenticateToken, async (req, res) => {
       });
     }
 
+    if (
+      image &&
+      typeof image === "string" &&
+      !image.startsWith("data:image/")
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid image format.",
+      });
+    }
+
+    if (
+      image &&
+      typeof image === "string" &&
+      image.length > 8 * 1024 * 1024
+    ) {
+      return res.status(413).json({
+        success: false,
+        message:
+          "Photo is too large. Try a smaller image.",
+      });
+    }
+
     const now = new Date();
 
     const post = await Post.create({
@@ -90,6 +113,17 @@ router.post("/", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error("Create post error:", error);
+
+    if (
+      error?.name === "PayloadTooLargeError" ||
+      error?.type === "entity.too.large"
+    ) {
+      return res.status(413).json({
+        success: false,
+        message:
+          "Photo is too large. Try a smaller image.",
+      });
+    }
 
     return res.status(500).json({
       success: false,
@@ -237,6 +271,7 @@ router.post(
         success: true,
         liked: !alreadyLiked,
         likesCount: post.likes.length,
+        likes: post.likes,
       });
     } catch (error) {
       console.error("Like post error:", error);

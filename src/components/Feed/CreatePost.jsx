@@ -1,5 +1,72 @@
 import { useRef, useState } from "react";
 
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+const MAX_IMAGE_WIDTH = 1280;
+const JPEG_QUALITY = 0.78;
+
+function compressImageFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onerror = () => {
+      reject(new Error("Could not read image file."));
+    };
+
+    reader.onload = () => {
+      const img = new Image();
+
+      img.onerror = () => {
+        reject(new Error("Could not load image."));
+      };
+
+      img.onload = () => {
+        const scale = Math.min(
+          1,
+          MAX_IMAGE_WIDTH / img.width
+        );
+
+        const width = Math.max(
+          1,
+          Math.round(img.width * scale)
+        );
+
+        const height = Math.max(
+          1,
+          Math.round(img.height * scale)
+        );
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+
+        const context = canvas.getContext("2d");
+
+        if (!context) {
+          reject(new Error("Could not process image."));
+          return;
+        }
+
+        context.drawImage(img, 0, 0, width, height);
+
+        const outputType = file.type === "image/png"
+          ? "image/png"
+          : "image/jpeg";
+
+        const dataUrl = canvas.toDataURL(
+          outputType,
+          JPEG_QUALITY
+        );
+
+        resolve(dataUrl);
+      };
+
+      img.src = reader.result;
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
 function CreatePost({
   currentUser,
   onCreatePost,
@@ -8,39 +75,56 @@ function CreatePost({
   const [text, setText] = useState("");
   const [image, setImage] = useState("");
   const [imageName, setImageName] = useState("");
+  const [imageError, setImageError] = useState("");
+  const [compressing, setCompressing] = useState(false);
 
   const fileInputRef = useRef(null);
 
-  function handleImageChange(event) {
+  async function handleImageChange(event) {
     const file = event.target.files?.[0];
+
+    setImageError("");
 
     if (!file) {
       return;
     }
 
     if (!file.type.startsWith("image/")) {
-      alert("Please select an image file.");
+      setImageError("Please select an image file.");
+      event.target.value = "";
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert("Image must be smaller than 5 MB.");
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setImageError("Image must be smaller than 5 MB.");
+      event.target.value = "";
       return;
     }
 
-    const reader = new FileReader();
+    try {
+      setCompressing(true);
 
-    reader.onload = () => {
-      setImage(reader.result);
+      const dataUrl = await compressImageFile(file);
+
+      setImage(dataUrl);
       setImageName(file.name);
-    };
-
-    reader.readAsDataURL(file);
+    } catch (error) {
+      console.error("Image compress error:", error);
+      setImageError(
+        error.message || "Could not process image."
+      );
+      setImage("");
+      setImageName("");
+      event.target.value = "";
+    } finally {
+      setCompressing(false);
+    }
   }
 
   function removeImage() {
     setImage("");
     setImageName("");
+    setImageError("");
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -63,6 +147,7 @@ function CreatePost({
       setText("");
       setImage("");
       setImageName("");
+      setImageError("");
 
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
@@ -73,6 +158,8 @@ function CreatePost({
   const userInitial =
     currentUser?.username?.charAt(0).toUpperCase() ||
     "U";
+
+  const busy = creating || compressing;
 
   return (
     <section className="create-post-card">
@@ -109,7 +196,7 @@ function CreatePost({
             currentUser?.username || "user"
           }?`}
           maxLength={2000}
-          disabled={creating}
+          disabled={busy}
           aria-label="Post text"
         />
 
@@ -122,7 +209,7 @@ function CreatePost({
               onClick={removeImage}
               title="Remove image"
               aria-label="Remove image"
-              disabled={creating}
+              disabled={busy}
             >
               ×
             </button>
@@ -135,8 +222,15 @@ function CreatePost({
           </div>
         )}
 
+        {imageError && (
+          <div className="create-post-image-error">
+            {imageError}
+          </div>
+        )}
+
         <div className="create-post-expiry-note">
-          Auto-deletes in 7 days (only option)
+          Auto-deletes in 7 days · you can also delete
+          manually anytime
         </div>
 
         <div className="create-post-footer">
@@ -146,11 +240,13 @@ function CreatePost({
               onClick={() =>
                 fileInputRef.current?.click()
               }
-              disabled={creating}
+              disabled={busy}
               title="Add photo"
             >
               🖼️
-              <span>Photo</span>
+              <span>
+                {compressing ? "Loading..." : "Photo"}
+              </span>
             </button>
 
             <input
@@ -166,7 +262,7 @@ function CreatePost({
             type="submit"
             className="create-post-btn"
             disabled={
-              creating || (!text.trim() && !image)
+              busy || (!text.trim() && !image)
             }
           >
             {creating ? "Posting..." : "Post"}

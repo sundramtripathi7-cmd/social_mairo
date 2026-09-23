@@ -21,6 +21,32 @@ function ChatWindow({
   messagesEndRef,
   setSelectedUser,
 }) {
+  function handleInputFocus(event) {
+    /*
+      Keep header fixed like WhatsApp:
+      stop the browser from scrolling the page
+      when the keyboard opens.
+    */
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+
+    const input = event.currentTarget;
+
+    requestAnimationFrame(() => {
+      window.scrollTo(0, 0);
+
+      try {
+        input.scrollIntoView({
+          block: "nearest",
+          inline: "nearest",
+        });
+      } catch {
+        /* ignore */
+      }
+    });
+  }
+
   return (
     <main className="chat-area">
       {selectedUser ? (
@@ -35,7 +61,6 @@ function ChatWindow({
               ←
             </button>
 
-            {/* Chat header profile photo */}
             <div className="avatar">
               {selectedUser.photo ? (
                 <img
@@ -190,6 +215,9 @@ function ChatWindow({
               value={message}
               onChange={handleTyping}
               onKeyDown={handleKeyDown}
+              onFocus={handleInputFocus}
+              enterKeyHint="send"
+              autoComplete="off"
             />
 
             <button
