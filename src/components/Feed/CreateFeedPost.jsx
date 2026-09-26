@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 
-const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const MAX_IMAGE_WIDTH = 1280;
 const JPEG_QUALITY = 0.78;
 
@@ -48,10 +48,7 @@ function compressImageFile(file) {
 
         context.drawImage(img, 0, 0, width, height);
 
-        const outputType =
-          file.type === "image/png"
-            ? "image/png"
-            : "image/jpeg";
+        const outputType = "image/jpeg";
 
         resolve(
           canvas.toDataURL(outputType, JPEG_QUALITY)
@@ -90,14 +87,19 @@ function CreateFeedPost({
       return;
     }
 
-    if (!file.type.startsWith("image/")) {
+    if (
+      !file.type.startsWith("image/") &&
+      !/\.(jpe?g|png|gif|webp|heic|heif|bmp|avif)$/i.test(
+        file.name || ""
+      )
+    ) {
       setImageError("Only photos can be posted.");
       event.target.value = "";
       return;
     }
 
     if (file.size > MAX_UPLOAD_BYTES) {
-      setImageError("Photo must be smaller than 5 MB.");
+      setImageError("Photo must be smaller than 20 MB.");
       event.target.value = "";
       return;
     }
@@ -200,22 +202,22 @@ function CreateFeedPost({
 
         <div className="create-post-footer">
           <div className="create-post-options">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={busy}
+            <label
+              className={`photo-pick ${
+                busy ? "is-disabled" : ""
+              }`}
             >
               {compressing ? "Loading photo..." : "Photo"}
-            </button>
+              <input
+                ref={fileInputRef}
+                className="photo-pick-input"
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                disabled={busy}
+              />
+            </label>
           </div>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleImageChange}
-            hidden
-          />
 
           <button
             type="submit"

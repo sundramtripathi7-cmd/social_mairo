@@ -127,7 +127,8 @@ img {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transform: translateY(var(--vv-offset, 0px));
+  position: relative;
+  top: var(--vv-offset, 0px);
 }
 
 /* =========================================================
@@ -2309,7 +2310,9 @@ img {
   margin-top: 12px;
 }
 
-.create-post-options button {
+.create-post-options button,
+.create-post-options .photo-pick {
+  position: relative;
   min-height: 36px;
   display: flex;
   align-items: center;
@@ -3231,6 +3234,10 @@ img {
 
 .status-send-btn,
 .status-tool-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 38px;
   border: 0;
   border-radius: 999px;
@@ -3243,10 +3250,20 @@ img {
   cursor: pointer;
 }
 
-.status-send-btn:disabled,
-.status-tool-btn:disabled {
+.photo-pick-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.status-tool-btn.is-disabled,
+.photo-pick.is-disabled {
   opacity: 0.45;
-  cursor: default;
+  pointer-events: none;
 }
 
 .status-tool-btn {

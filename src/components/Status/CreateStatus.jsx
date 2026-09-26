@@ -5,7 +5,7 @@ import {
   statusFontSize,
 } from "./statusUtils";
 
-const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const MAX_IMAGE_WIDTH = 1280;
 const JPEG_QUALITY = 0.78;
 
@@ -53,10 +53,7 @@ function compressImageFile(file) {
 
         context.drawImage(img, 0, 0, width, height);
 
-        const outputType =
-          file.type === "image/png"
-            ? "image/png"
-            : "image/jpeg";
+        const outputType = "image/jpeg";
 
         resolve(
           canvas.toDataURL(outputType, JPEG_QUALITY)
@@ -116,14 +113,18 @@ function CreateStatus({
       return;
     }
 
-    if (!file.type.startsWith("image/")) {
+    if (!file.type.startsWith("image/") &&
+      !/\.(jpe?g|png|gif|webp|heic|heif|bmp|avif)$/i.test(
+        file.name || ""
+      )
+    ) {
       setImageError("Please select an image file.");
       event.target.value = "";
       return;
     }
 
     if (file.size > MAX_UPLOAD_BYTES) {
-      setImageError("Image must be smaller than 5 MB.");
+      setImageError("Image must be smaller than 20 MB.");
       event.target.value = "";
       return;
     }
@@ -276,27 +277,24 @@ function CreateStatus({
         )}
 
         <div className="status-composer-tools">
-          <button
-            type="button"
-            className="status-tool-btn"
-            onClick={() =>
-              fileInputRef.current?.click()
-            }
-            disabled={busy}
+          <label
+            className={`status-tool-btn ${
+              busy ? "is-disabled" : ""
+            }`}
           >
             {compressing ? "Loading photo..." : "Photo"}
-          </button>
+            <input
+              ref={fileInputRef}
+              className="photo-pick-input"
+              type="file"
+              accept="image/*"
+              onChange={handleImageChange}
+              disabled={busy}
+            />
+          </label>
 
           <span>Disappears after 24 hours</span>
         </div>
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleImageChange}
-          hidden
-        />
       </div>
     </form>
   );

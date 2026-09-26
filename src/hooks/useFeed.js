@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
+import { getStoredUser, getToken } from "../utils/authStorage";
 
 function readCurrentUserId() {
   try {
-    const saved = JSON.parse(
-      sessionStorage.getItem("user") || "null"
-    );
+    const saved = getStoredUser();
 
     return String(saved?.id || saved?._id || "");
   } catch {
@@ -33,8 +32,6 @@ function useFeed({ apiUrl, enabled }) {
   const [deletingPostId, setDeletingPostId] = useState(null);
   const [likingPostId, setLikingPostId] = useState(null);
   const [feedError, setFeedError] = useState("");
-
-  const getToken = () => sessionStorage.getItem("token");
 
   const loadFeed = useCallback(async () => {
     const token = getToken();

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 import { EVERYONE_GROUP_ID } from "../constants/group";
+import { getToken } from "../utils/authStorage";
 
 function useChatSocket({
   socketUrl,
@@ -32,7 +33,7 @@ function useChatSocket({
 
   useEffect(() => {
     const token =
-      sessionStorage.getItem("token");
+      getToken();
 
     if (!token || !currentUserId) {
       return;

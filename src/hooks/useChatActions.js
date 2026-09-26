@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { EVERYONE_GROUP_ID } from "../constants/group";
+import { clearSession } from "../utils/authStorage";
 
 function useChatActions({
   selectedUserId,
@@ -147,13 +148,7 @@ function useChatActions({
       socketRef.current = null;
     }
 
-    sessionStorage.removeItem(
-      "token"
-    );
-
-    sessionStorage.removeItem(
-      "user"
-    );
+    clearSession();
 
     setCurrentUser(null);
     setPage("login");

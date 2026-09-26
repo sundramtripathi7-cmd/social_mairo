@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { matchPercent } from "../constants/interests";
+import { getToken } from "../utils/authStorage";
 
 function useUsers({
   apiUrl,
@@ -17,7 +18,7 @@ function useUsers({
 
   useEffect(() => {
     async function loadUsers() {
-      const token = sessionStorage.getItem("token");
+      const token = getToken();
 
       if (!token) {
         setLoadingUsers(false);
@@ -135,7 +136,7 @@ function useUsers({
   useEffect(() => {
     async function loadUnreadCounts() {
       const token =
-        sessionStorage.getItem("token");
+        getToken();
 
       if (!token) {
         return;

@@ -1,4 +1,8 @@
 import { useState } from "react";
+import {
+  getToken,
+  saveSession,
+} from "../utils/authStorage";
 
 function useProfile({
   currentUser,
@@ -207,10 +211,7 @@ function useProfile({
   }
 
   async function saveProfile() {
-    const token =
-      sessionStorage.getItem(
-        "token"
-      );
+    const token = getToken();
 
     if (!token) {
       return;
@@ -302,12 +303,7 @@ function useProfile({
         updatedUser
       );
 
-      sessionStorage.setItem(
-        "user",
-        JSON.stringify(
-          updatedUser
-        )
-      );
+      saveSession(getToken(), updatedUser);
 
       setProfileName(
         updatedUser.name || ""
@@ -340,7 +336,7 @@ function useProfile({
   }
 
   async function deleteAccount(password) {
-    const token = sessionStorage.getItem("token");
+    const token = getToken();
 
     if (!token) {
       setProfileError("Please login again.");

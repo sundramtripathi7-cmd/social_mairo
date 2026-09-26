@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { EVERYONE_GROUP_ID } from "../constants/group";
+import { getToken } from "../utils/authStorage";
 
 function useMessages({
   apiUrl,
@@ -38,7 +39,7 @@ function useMessages({
     });
 
     const token =
-      sessionStorage.getItem("token");
+      getToken();
 
     if (!token) {
       return;
@@ -91,7 +92,7 @@ function useMessages({
 
     async function loadMessages() {
       const token =
-        sessionStorage.getItem("token");
+        getToken();
 
       if (!token) {
         return;
@@ -219,7 +220,7 @@ function useMessages({
     }
 
     const token =
-      sessionStorage.getItem("token");
+      getToken();
 
     if (!token) {
       return;
@@ -278,7 +279,7 @@ function useMessages({
     }
 
     const token =
-      sessionStorage.getItem("token");
+      getToken();
 
     if (!token) {
       return false;

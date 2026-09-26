@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import InterestPicker from "../Profile/InterestPicker";
+import { saveSession } from "../../utils/authStorage";
 
 function SignupPage({ setPage, setCurrentUser, apiUrl }) {
   const [username, setUsername] = useState("");
@@ -159,15 +160,7 @@ function SignupPage({ setPage, setCurrentUser, apiUrl }) {
         return;
       }
 
-      sessionStorage.setItem(
-        "token",
-        data.token
-      );
-
-      sessionStorage.setItem(
-        "user",
-        JSON.stringify(data.user)
-      );
+      saveSession(data.token, data.user);
 
       if (setCurrentUser) {
         setCurrentUser(data.user);

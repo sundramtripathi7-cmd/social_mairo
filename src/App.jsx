@@ -18,6 +18,10 @@ import useFeed from "./hooks/useFeed";
 import useKeyboardInset from "./hooks/useKeyboardInset";
 
 import "./App.css";
+import {
+  getStoredUser,
+  getToken,
+} from "./utils/authStorage";
 
 const API_URL =
   import.meta.env.VITE_API_URL ||
@@ -32,27 +36,45 @@ const SOCKET_URL =
 ===================================================== */
 
 function App() {
-  const [page, setPage] = useState(
-    sessionStorage.getItem("token")
-      ? "chat"
-      : "login"
+  const [page, setPage] = useState(() =>
+    getToken() ? "chat" : "login"
   );
 
   const [currentUser, setCurrentUser] =
-    useState(() => {
-      const savedUser =
-        sessionStorage.getItem("user");
+    useState(() => getStoredUser());
 
-      if (!savedUser) {
-        return null;
+  useEffect(() => {
+    function restoreLogin() {
+      const token = getToken();
+      const user = getStoredUser();
+
+      if (token) {
+        if (user) {
+          setCurrentUser(user);
+        }
+
+        setPage((current) =>
+          current === "signup" ? current : "chat"
+        );
+
+        return;
       }
 
-      try {
-        return JSON.parse(savedUser);
-      } catch {
-        return null;
-      }
-    });
+      setCurrentUser(null);
+      setPage((current) =>
+        current === "signup" ? current : "login"
+      );
+    }
+
+    window.addEventListener("pageshow", restoreLogin);
+
+    return () => {
+      window.removeEventListener(
+        "pageshow",
+        restoreLogin
+      );
+    };
+  }, []);
 
   return (
     <div className="app">
