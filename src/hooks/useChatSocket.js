@@ -1,10 +1,10 @@
 import { useEffect, useRef } from "react";
 import { io } from "socket.io-client";
+import { EVERYONE_GROUP_ID } from "../constants/group";
 
 function useChatSocket({
   socketUrl,
   currentUserId,
-  currentUser,
   users,
   selectedUserRef,
   markConversationAsRead,
@@ -12,6 +12,7 @@ function useChatSocket({
   setUnreadCounts,
   setUsers,
   setOnlineUsers,
+  setSelectedUser,
   setTypingUserId,
   socketRef,
 }) {
@@ -51,20 +52,7 @@ function useChatSocket({
         socket.id
       );
 
-      const userId =
-        currentUser?.id ||
-        currentUser?._id;
-
-      const saved = userId
-        ? localStorage.getItem(
-            `showOnline_${userId}`
-          )
-        : null;
-
-      socket.emit("join", {
-        showOnline:
-          saved !== "false",
-      });
+      socket.emit("join");
     });
 
     socket.on(
@@ -94,6 +82,38 @@ function useChatSocket({
         );
       }
     );
+
+    socket.on("userDeleted", ({ userId }) => {
+      const deletedId = String(userId || "");
+
+      if (!deletedId) {
+        return;
+      }
+
+      setUsers((previousUsers) =>
+        previousUsers.filter((user) => {
+          return (
+            String(user.id || user._id) !==
+            deletedId
+          );
+        })
+      );
+
+      setOnlineUsers((previous) =>
+        previous.filter((id) => id !== deletedId)
+      );
+
+      const selected = selectedUserRef.current;
+
+      if (
+        selected &&
+        String(selected.id || selected._id) ===
+          deletedId
+      ) {
+        selectedUserRef.current = null;
+        setSelectedUser?.(null);
+      }
+    });
 
     socket.on(
       "newMessage",
@@ -253,6 +273,65 @@ function useChatSocket({
         );
       }
     );
+
+    socket.on("groupMessage", (incoming) => {
+      const senderId = String(incoming.sender || "");
+      const messageId = String(
+        incoming.id || incoming._id
+      );
+      const isOwn = senderId === String(currentUserId);
+
+      const formattedMessage = {
+        id: messageId,
+        text: incoming.text,
+        type: isOwn ? "sent" : "received",
+        time:
+          incoming.time ||
+          new Date(incoming.createdAt).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        createdAt: incoming.createdAt,
+        senderUsername: incoming.senderUsername || "",
+        senderPhoto: incoming.senderPhoto || "",
+        group: EVERYONE_GROUP_ID,
+      };
+
+      const selected = selectedUserRef.current;
+      const selectedId = String(
+        selected?.id || selected?._id || ""
+      );
+
+      if (selectedId === EVERYONE_GROUP_ID) {
+        setMessages((previous) => {
+          const exists = previous.some(
+            (msg) => String(msg.id) === messageId
+          );
+
+          if (exists) {
+            return previous;
+          }
+
+          return [...previous, formattedMessage];
+        });
+
+        if (!isOwn) {
+          markReadRef.current(EVERYONE_GROUP_ID);
+        }
+
+        return;
+      }
+
+      if (isOwn) {
+        return;
+      }
+
+      setUnreadCounts((previous) => ({
+        ...previous,
+        [EVERYONE_GROUP_ID]:
+          (previous[EVERYONE_GROUP_ID] || 0) + 1,
+      }));
+    });
 
     socket.on(
       "messageDeleted",

@@ -1,4 +1,58 @@
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
+function readCurrentUserId() {
+  try {
+    const saved = JSON.parse(
+      sessionStorage.getItem("user") || "null"
+    );
+
+    return String(saved?.id || saved?._id || "");
+  } catch {
+    return "";
+  }
+}
+
+function normalizePost(post) {
+  const currentUserId = readCurrentUserId();
+  const author = post.author || {};
+  const authorId = String(
+    author._id || author.id || ""
+  );
+  const isOwn =
+    Boolean(currentUserId) &&
+    authorId === currentUserId;
+
+  const likes = Array.isArray(post.likes)
+    ? post.likes
+    : [];
+
+  const viewers = Array.isArray(post.viewers)
+    ? post.viewers
+    : [];
+
+  return {
+    ...post,
+    text: post.text || "",
+    image: post.image || "",
+    background: post.background || "",
+    likes,
+    likesCount: likes.length,
+    viewers: isOwn ? viewers : [],
+    viewersCount: isOwn
+      ? typeof post.viewersCount === "number"
+        ? post.viewersCount
+        : viewers.length
+      : 0,
+    viewedByMe: isOwn
+      ? true
+      : Boolean(post.viewedByMe),
+  };
+}
 
 function usePosts({ apiUrl }) {
   const [posts, setPosts] = useState([]);
@@ -7,13 +61,14 @@ function usePosts({ apiUrl }) {
   const [deletingPostId, setDeletingPostId] = useState(null);
   const [likingPostId, setLikingPostId] = useState(null);
   const [postError, setPostError] = useState("");
+  const viewedRef = useRef(new Set());
 
   const getToken = () => {
     return sessionStorage.getItem("token");
   };
 
   /*
-    LOAD POSTS
+    LOAD STATUSES
   */
   const loadPosts = useCallback(async () => {
     const token = getToken();
@@ -24,9 +79,6 @@ function usePosts({ apiUrl }) {
     }
 
     try {
-      setLoadingPosts(true);
-      setPostError("");
-
       const response = await fetch(
         `${apiUrl}/posts`,
         {
@@ -40,7 +92,7 @@ function usePosts({ apiUrl }) {
 
       if (!response.ok) {
         throw new Error(
-          data.message || "Could not load posts."
+          data.message || "Could not load statuses."
         );
       }
 
@@ -58,20 +110,21 @@ function usePosts({ apiUrl }) {
         }
       );
 
-      .setPosts(activePosts.map((post) => ({
-        ...post,
-        likes: Array.isArray(post.likes)
-          ? post.likes
-          : [],
-        likesCount: Array.isArray(post.likes)
-          ? post.likes.length
-          : 0,
-      })));
+      const normalizedPosts =
+        activePosts.map(normalizePost);
+
+      normalizedPosts.forEach((post) => {
+        if (post.viewedByMe) {
+          viewedRef.current.add(String(post._id));
+        }
+      });
+
+      setPosts(normalizedPosts);
     } catch (error) {
-      console.error("Load posts error:", error);
+      console.error("Load statuses error:", error);
 
       setPostError(
-        error.message || "Could not load posts."
+        error.message || "Could not load statuses."
       );
     } finally {
       setLoadingPosts(false);
@@ -79,18 +132,21 @@ function usePosts({ apiUrl }) {
   }, [apiUrl]);
 
   /*
-    LOAD POSTS WHEN HOOK STARTS
+    LOAD STATUSES WHEN HOOK STARTS
   */
   useEffect(() => {
+    // Same mount-fetch pattern as the other chat hooks.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadPosts();
   }, [loadPosts]);
 
   /*
-    CREATE POST
+    CREATE STATUS
   */
   const createPost = async ({
     text = "",
     image = "",
+    background = "",
   }) => {
     const token = getToken();
 
@@ -100,7 +156,7 @@ function usePosts({ apiUrl }) {
     }
 
     if (!text.trim() && !image) {
-      setPostError("Post cannot be empty.");
+      setPostError("Status cannot be empty.");
       return false;
     }
 
@@ -119,6 +175,7 @@ function usePosts({ apiUrl }) {
           body: JSON.stringify({
             text: text.trim(),
             image,
+            background,
           }),
         }
       );
@@ -139,21 +196,13 @@ function usePosts({ apiUrl }) {
         }
 
         throw new Error(
-          data.message || "Could not create post."
+          data.message || "Could not post status."
         );
       }
 
       if (data.post) {
         setPosts((previousPosts) => [
-          {
-            ...data.post,
-            likes: Array.isArray(data.post.likes)
-              ? data.post.likes
-              : [],
-            likesCount: Array.isArray(data.post.likes)
-              ? data.post.likes.length
-              : 0,
-          },
+          normalizePost(data.post),
           ...previousPosts,
         ]);
       }
@@ -161,16 +210,16 @@ function usePosts({ apiUrl }) {
       return true;
     } catch (error) {
       console.error(
-        "Create post error:",
+        "Create status error:",
         error
       );
 
       const message =
-        error.message || "Could not create post.";
+        error.message || "Could not post status.";
 
       setPostError(
         message.includes("Failed to fetch")
-          ? "Could not upload post. Try a smaller photo."
+          ? "Could not upload status. Try a smaller photo."
           : message
       );
 
@@ -181,7 +230,7 @@ function usePosts({ apiUrl }) {
   };
 
   /*
-    DELETE POST
+    DELETE STATUS
   */
   const deletePost = async (postId) => {
     const token = getToken();
@@ -209,7 +258,7 @@ function usePosts({ apiUrl }) {
 
       if (!response.ok) {
         throw new Error(
-          data.message || "Could not delete post."
+          data.message || "Could not delete status."
         );
       }
 
@@ -224,12 +273,12 @@ function usePosts({ apiUrl }) {
       return true;
     } catch (error) {
       console.error(
-        "Delete post error:",
+        "Delete status error:",
         error
       );
 
       setPostError(
-        error.message || "Could not delete post."
+        error.message || "Could not delete status."
       );
 
       return false;
@@ -239,7 +288,7 @@ function usePosts({ apiUrl }) {
   };
 
   /*
-    LIKE / UNLIKE POST
+    LIKE / UNLIKE STATUS
   */
   const likePost = async (postId) => {
     const token = getToken();
@@ -267,17 +316,11 @@ function usePosts({ apiUrl }) {
 
       if (!response.ok) {
         throw new Error(
-          data.message || "Could not like post."
+          data.message || "Could not like status."
         );
       }
 
-      const savedUser = JSON.parse(
-        sessionStorage.getItem("user") || "null"
-      );
-
-      const currentUserId = String(
-        savedUser?.id || savedUser?._id || ""
-      );
+      const currentUserId = readCurrentUserId();
 
       setPosts((previousPosts) =>
         previousPosts.map((post) => {
@@ -325,10 +368,10 @@ function usePosts({ apiUrl }) {
 
       return true;
     } catch (error) {
-      console.error("Like post error:", error);
+      console.error("Like status error:", error);
 
       setPostError(
-        error.message || "Could not like post."
+        error.message || "Could not like status."
       );
 
       return false;
@@ -336,6 +379,74 @@ function usePosts({ apiUrl }) {
       setLikingPostId(null);
     }
   };
+
+  /*
+    MARK A STATUS AS VIEWED
+  */
+  const viewStatus = useCallback(async (postId) => {
+    const token = getToken();
+    const id = String(postId || "");
+
+    if (!token || !id) {
+      return false;
+    }
+
+    if (viewedRef.current.has(id)) {
+      return true;
+    }
+
+    viewedRef.current.add(id);
+
+    setPosts((previousPosts) =>
+      previousPosts.map((post) => {
+        if (String(post._id) !== id) {
+          return post;
+        }
+
+        return {
+          ...post,
+          viewedByMe: true,
+        };
+      })
+    );
+
+    try {
+      const response = await fetch(
+        `${apiUrl}/posts/${id}/view`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Could not mark status viewed.");
+      }
+
+      return true;
+    } catch (error) {
+      console.error("View status error:", error);
+
+      viewedRef.current.delete(id);
+
+      setPosts((previousPosts) =>
+        previousPosts.map((post) => {
+          if (String(post._id) !== id) {
+            return post;
+          }
+
+          return {
+            ...post,
+            viewedByMe: false,
+          };
+        })
+      );
+
+      return false;
+    }
+  }, [apiUrl]);
 
   return {
     posts,
@@ -350,6 +461,7 @@ function usePosts({ apiUrl }) {
     createPost,
     deletePost,
     likePost,
+    viewStatus,
   };
 }
 

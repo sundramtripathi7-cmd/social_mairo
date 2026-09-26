@@ -5,7 +5,8 @@ import LoginPage from "./components/Auth/LoginPage";
 import SignupPage from "./components/Auth/SignupPage";
 import ProfileModal from "./components/Profile/ProfileModal";
 import Sidebar from "./components/Sidebar/Sidebar";
-import Feed from "./components/Feed/Feed";
+import StatusPage from "./components/Status/StatusPage";
+import FeedPage from "./components/Feed/FeedPage";
 
 import useChatSocket from "./hooks/useChatSocket";
 import useProfile from "./hooks/useProfile";
@@ -13,6 +14,8 @@ import useUsers from "./hooks/useUsers";
 import useMessages from "./hooks/useMessages";
 import useChatActions from "./hooks/useChatActions";
 import usePosts from "./hooks/usePosts";
+import useFeed from "./hooks/useFeed";
+import useKeyboardInset from "./hooks/useKeyboardInset";
 
 import "./App.css";
 
@@ -110,24 +113,6 @@ function ChatPage({
         : false
     );
 
-  const [showOnline, setShowOnline] =
-    useState(() => {
-      const userId =
-        currentUser?.id ||
-        currentUser?._id;
-
-      if (!userId) {
-        return true;
-      }
-
-      const saved =
-        localStorage.getItem(
-          `showOnline_${userId}`
-        );
-
-      return saved !== "false";
-    });
-
   const [typingUserId, setTypingUserId] =
     useState(null);
 
@@ -167,6 +152,9 @@ function ChatPage({
     setOnlineUsers,
   } = useUsers({
     apiUrl: API_URL,
+    currentUser,
+    currentUserId,
+    myInterests: currentUser?.interests,
     setSelectedUser,
   });
 
@@ -215,7 +203,7 @@ function ChatPage({
   });
 
   /* =====================================================
-     POSTS / FEED
+     STATUS
   ===================================================== */
 
   const {
@@ -225,13 +213,33 @@ function ChatPage({
     deletingPostId,
     likingPostId,
     postError,
+    setPostError,
     createPost,
     deletePost,
     likePost,
+    viewStatus,
     loadPosts,
   } = usePosts({
     apiUrl: API_URL,
   });
+
+  const {
+    posts: feedPosts,
+    loadingPosts: loadingFeed,
+    creatingPost: creatingFeedPost,
+    deletingPostId: deletingFeedPostId,
+    likingPostId: likingFeedPostId,
+    feedError,
+    createPost: createFeedPost,
+    deletePost: deleteFeedPost,
+    likePost: likeFeedPost,
+    loadFeed,
+  } = useFeed({
+    apiUrl: API_URL,
+    enabled: activeView === "feed",
+  });
+
+  useKeyboardInset();
 
   /* =====================================================
      SOCKET
@@ -240,7 +248,6 @@ function ChatPage({
   useChatSocket({
     socketUrl: SOCKET_URL,
     currentUserId,
-    currentUser,
     users,
     selectedUserRef,
     markConversationAsRead,
@@ -248,6 +255,7 @@ function ChatPage({
     setUnreadCounts,
     setUsers,
     setOnlineUsers,
+    setSelectedUser,
     setTypingUserId,
     socketRef,
   });
@@ -261,14 +269,18 @@ function ChatPage({
     profileName,
     profileUsername,
     profilePhoto,
+    profileInterests,
     profileSaving,
+    deletingAccount,
     profileError,
     setProfileName,
     setProfileUsername,
+    setProfileInterests,
     openProfile,
     closeProfile,
     handleProfilePhoto,
     saveProfile,
+    deleteAccount,
   } = useProfile({
     currentUser,
     setCurrentUser,
@@ -336,10 +348,14 @@ function ChatPage({
     }
 
     const timer = setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "end",
-      });
+      const scroller =
+        messagesEndRef.current?.parentElement;
+
+      if (!scroller) {
+        return;
+      }
+
+      scroller.scrollTop = scroller.scrollHeight;
     }, 50);
 
     return () => clearTimeout(timer);
@@ -383,34 +399,6 @@ function ChatPage({
   }, []);
 
   /* =====================================================
-     ONLINE VISIBILITY
-  ===================================================== */
-
-  useEffect(() => {
-    const userId =
-      currentUser?.id ||
-      currentUser?._id;
-
-    if (!userId) {
-      return;
-    }
-
-    localStorage.setItem(
-      `showOnline_${userId}`,
-      String(showOnline)
-    );
-
-    if (socketRef.current?.connected) {
-      socketRef.current.emit(
-        "setPresence",
-        {
-          showOnline,
-        }
-      );
-    }
-  }, [showOnline, currentUser]);
-
-  /* =====================================================
      STATUS
   ===================================================== */
 
@@ -444,10 +432,19 @@ function ChatPage({
     setActiveView("chat");
   }
 
+  function openStatusView() {
+    setSelectedUser(null);
+    selectedUserRef.current = null;
+    setTypingUserId(null);
+    setActiveView("status");
+    loadPosts();
+  }
+
   function openFeedView() {
     setSelectedUser(null);
     selectedUserRef.current = null;
     setTypingUserId(null);
+    setShowEmojiPicker(false);
     setActiveView("feed");
   }
 
@@ -499,17 +496,29 @@ function ChatPage({
         <button
           type="button"
           className={
+            activeView === "status"
+              ? "active"
+              : ""
+          }
+          onClick={openStatusView}
+        >
+          Status
+        </button>
+
+        <button
+          type="button"
+          className={
             activeView === "feed"
               ? "active"
               : ""
           }
           onClick={openFeedView}
         >
-          📰 Feed
+          Feed
         </button>
       </div>
 
-      {activeView === "chat" ? (
+      {activeView === "chat" && (
         <>
           <Sidebar
             filteredUsers={filteredUsers}
@@ -523,10 +532,6 @@ function ChatPage({
             }
             selectUser={selectUser}
             currentUser={currentUser}
-            showOnline={showOnline}
-            setShowOnline={
-              setShowOnline
-            }
             openProfile={openProfile}
             logout={logout}
             error={error}
@@ -575,87 +580,11 @@ function ChatPage({
               setSelectedUser
             }
           />
-
-          <ProfileModal
-            showProfile={showProfile}
-            closeProfile={closeProfile}
-            profileName={profileName}
-            setProfileName={
-              setProfileName
-            }
-            profileUsername={
-              profileUsername
-            }
-            setProfileUsername={
-              setProfileUsername
-            }
-            profilePhoto={profilePhoto}
-            handleProfilePhoto={
-              handleProfilePhoto
-            }
-            profileSaving={
-              profileSaving
-            }
-            profileError={
-              profileError
-            }
-            saveProfile={saveProfile}
-          />
         </>
-      ) : (
-        <>
-          <aside className="feed-side-panel">
-            <div className="feed-side-header">
-              <h2>mairochat</h2>
-              <p className="feed-side-note">
-                Feed posts auto-delete after 7 days
-              </p>
-            </div>
+      )}
 
-            <button
-              type="button"
-              className="feed-nav-profile"
-              onClick={openProfile}
-            >
-              <div className="feed-nav-avatar">
-                {currentUser?.photo ? (
-                  <img
-                    src={currentUser.photo}
-                    alt={`@${currentUser.username}`}
-                  />
-                ) : (
-                  currentUser?.username
-                    ?.charAt(0)
-                    .toUpperCase() || "U"
-                )}
-              </div>
-
-              <div>
-                <strong>
-                  @{currentUser?.username || "user"}
-                </strong>
-                <span>My Profile</span>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              className="feed-back-chat-btn"
-              onClick={openChatView}
-            >
-              💬 Back to Chats
-            </button>
-
-            <button
-              type="button"
-              className="feed-logout-btn"
-              onClick={logout}
-            >
-              Logout
-            </button>
-          </aside>
-
-          <Feed
+      {activeView === "status" && (
+        <StatusPage
             currentUser={currentUser}
             posts={posts}
             loadingPosts={loadingPosts}
@@ -663,39 +592,69 @@ function ChatPage({
             deletingPostId={deletingPostId}
             likingPostId={likingPostId}
             postError={postError}
+            setPostError={setPostError}
             createPost={createPost}
             deletePost={deletePost}
             likePost={likePost}
+            viewStatus={viewStatus}
             loadPosts={loadPosts}
+            openProfile={openProfile}
+            logout={logout}
+            openChatView={openChatView}
           />
-
-          <ProfileModal
-            showProfile={showProfile}
-            closeProfile={closeProfile}
-            profileName={profileName}
-            setProfileName={
-              setProfileName
-            }
-            profileUsername={
-              profileUsername
-            }
-            setProfileUsername={
-              setProfileUsername
-            }
-            profilePhoto={profilePhoto}
-            handleProfilePhoto={
-              handleProfilePhoto
-            }
-            profileSaving={
-              profileSaving
-            }
-            profileError={
-              profileError
-            }
-            saveProfile={saveProfile}
-          />
-        </>
       )}
+
+      {activeView === "feed" && (
+        <FeedPage
+          currentUser={currentUser}
+          posts={feedPosts}
+          loadingPosts={loadingFeed}
+          creatingPost={creatingFeedPost}
+          deletingPostId={deletingFeedPostId}
+          likingPostId={likingFeedPostId}
+          feedError={feedError}
+          createPost={createFeedPost}
+          deletePost={deleteFeedPost}
+          likePost={likeFeedPost}
+          loadFeed={loadFeed}
+          openProfile={openProfile}
+          logout={logout}
+          openChatView={openChatView}
+        />
+      )}
+
+      <ProfileModal
+        key={showProfile ? "profile-open" : "profile-closed"}
+        showProfile={showProfile}
+        closeProfile={closeProfile}
+        profileName={profileName}
+        setProfileName={setProfileName}
+        profileUsername={profileUsername}
+        setProfileUsername={
+          setProfileUsername
+        }
+        profilePhoto={profilePhoto}
+        profileInterests={profileInterests}
+        setProfileInterests={setProfileInterests}
+        handleProfilePhoto={
+          handleProfilePhoto
+        }
+        profileSaving={profileSaving}
+        deletingAccount={deletingAccount}
+        profileError={profileError}
+        saveProfile={saveProfile}
+        deleteAccount={async (password) => {
+          const deleted = await deleteAccount(
+            password
+          );
+
+          if (deleted) {
+            logout();
+          }
+
+          return deleted;
+        }}
+      />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { EVERYONE_GROUP_ID } from "../constants/group";
 
 function useMessages({
   apiUrl,
@@ -36,7 +37,22 @@ function useMessages({
       return updated;
     });
 
-    if (socketRef.current?.connected) {
+    const token =
+      sessionStorage.getItem("token");
+
+    if (!token) {
+      return;
+    }
+
+    const readUrl =
+      senderIdString === EVERYONE_GROUP_ID
+        ? `${apiUrl}/messages/group/read`
+        : `${apiUrl}/messages/${senderIdString}/read`;
+
+    if (
+      senderIdString !== EVERYONE_GROUP_ID &&
+      socketRef.current?.connected
+    ) {
       socketRef.current.emit(
         "markRead",
         {
@@ -46,17 +62,8 @@ function useMessages({
       );
     }
 
-    const token =
-      sessionStorage.getItem("token");
-
-    if (!token) {
-      return;
-    }
-
     try {
-      await fetch(
-        `${apiUrl}/messages/${senderIdString}/read`,
-        {
+      await fetch(readUrl, {
           method: "POST",
           headers: {
             Authorization:
@@ -97,7 +104,9 @@ function useMessages({
 
         const response =
           await fetch(
-            `${apiUrl}/messages/${selectedUserId}`,
+            selectedUserId === EVERYONE_GROUP_ID
+              ? `${apiUrl}/messages/group`
+              : `${apiUrl}/messages/${selectedUserId}`,
             {
               headers: {
                 Authorization:
@@ -134,6 +143,7 @@ function useMessages({
                 ),
                 msg.text || "",
                 Boolean(msg.read),
+                msg.senderUsername || "",
                 msg.readAt || "",
                 msg.createdAt || "",
               ].join("|")
@@ -276,7 +286,7 @@ function useMessages({
 
     setSending(true);
 
-    if (socketRef.current) {
+    if (socketRef.current && selectedUserId !== EVERYONE_GROUP_ID) {
       socketRef.current.emit(
         "typing",
         {
@@ -287,10 +297,15 @@ function useMessages({
       );
     }
 
+    const isGroup =
+      selectedUserId === EVERYONE_GROUP_ID;
+
     try {
       const response =
         await fetch(
-          `${apiUrl}/messages`,
+          isGroup
+            ? `${apiUrl}/messages/group`
+            : `${apiUrl}/messages`,
           {
             method: "POST",
             headers: {
@@ -299,12 +314,19 @@ function useMessages({
               Authorization:
                 `Bearer ${token}`,
             },
-            body: JSON.stringify({
-              receiverId:
-                selectedUserId,
-              text:
-                messageText.trim(),
-            }),
+            body: JSON.stringify(
+              isGroup
+                ? {
+                    text:
+                      messageText.trim(),
+                  }
+                : {
+                    receiverId:
+                      selectedUserId,
+                    text:
+                      messageText.trim(),
+                  }
+            ),
           }
         );
 
@@ -345,6 +367,10 @@ function useMessages({
         read: Boolean(
           data.message.read
         ),
+
+        senderUsername:
+          data.message.senderUsername ||
+          "",
       };
 
       setMessages(

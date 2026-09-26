@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import { matchPercent } from "../constants/interests";
 
 function useUsers({
   apiUrl,
   currentUser,
   currentUserId,
+  myInterests,
   setSelectedUser,
 }) {
   const [users, setUsers] = useState([]);
@@ -169,32 +171,57 @@ function useUsers({
     loadUnreadCounts();
   }, [apiUrl]);
 
+  const interestKey = (
+    Array.isArray(myInterests) ? myInterests : []
+  ).join("|");
+
   const filteredUsers = useMemo(() => {
     const query =
       search.toLowerCase().trim();
+    const mine = interestKey
+      ? interestKey.split("|")
+      : [];
 
-    return users.filter((user) => {
-      const matchesSearch =
-        user.name
-          ?.toLowerCase()
-          .includes(query) ||
-        user.username
-          ?.toLowerCase()
-          .includes(query);
+    return users
+      .filter((user) => {
+        const matchesSearch =
+          user.name
+            ?.toLowerCase()
+            .includes(query) ||
+          user.username
+            ?.toLowerCase()
+            .includes(query);
 
-      const matchesGender =
-        genderFilter === "all" ||
-        user.gender === genderFilter;
+        const matchesGender =
+          genderFilter === "all" ||
+          user.gender === genderFilter;
 
-      return (
-        matchesSearch &&
-        matchesGender
-      );
-    });
+        return (
+          matchesSearch &&
+          matchesGender
+        );
+      })
+      .map((user) => ({
+        ...user,
+        matchPercent: matchPercent(
+          mine,
+          user.interests || []
+        ),
+      }))
+      .sort((left, right) => {
+        if (right.matchPercent !== left.matchPercent) {
+          return right.matchPercent - left.matchPercent;
+        }
+
+        return (left.username || "").localeCompare(
+          right.username || ""
+        );
+      });
   }, [
     users,
     search,
     genderFilter,
+    interestKey,
   ]);
 
   return {

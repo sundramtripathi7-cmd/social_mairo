@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { EVERYONE_GROUP_ID } from "../constants/group";
 
 function useChatActions({
   selectedUserId,
@@ -49,7 +50,8 @@ function useChatActions({
 
     if (
       !socketRef.current ||
-      !selectedUserId
+      !selectedUserId ||
+      selectedUserId === EVERYONE_GROUP_ID
     ) {
       return;
     }

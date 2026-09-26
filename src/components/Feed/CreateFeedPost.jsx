@@ -48,16 +48,14 @@ function compressImageFile(file) {
 
         context.drawImage(img, 0, 0, width, height);
 
-        const outputType = file.type === "image/png"
-          ? "image/png"
-          : "image/jpeg";
+        const outputType =
+          file.type === "image/png"
+            ? "image/png"
+            : "image/jpeg";
 
-        const dataUrl = canvas.toDataURL(
-          outputType,
-          JPEG_QUALITY
+        resolve(
+          canvas.toDataURL(outputType, JPEG_QUALITY)
         );
-
-        resolve(dataUrl);
       };
 
       img.src = reader.result;
@@ -67,18 +65,21 @@ function compressImageFile(file) {
   });
 }
 
-function CreatePost({
+function CreateFeedPost({
   currentUser,
   onCreatePost,
   creating,
 }) {
   const [text, setText] = useState("");
   const [image, setImage] = useState("");
-  const [imageName, setImageName] = useState("");
   const [imageError, setImageError] = useState("");
   const [compressing, setCompressing] = useState(false);
-
   const fileInputRef = useRef(null);
+
+  const busy = creating || compressing;
+  const initial =
+    currentUser?.username?.charAt(0).toUpperCase() ||
+    "U";
 
   async function handleImageChange(event) {
     const file = event.target.files?.[0];
@@ -90,31 +91,27 @@ function CreatePost({
     }
 
     if (!file.type.startsWith("image/")) {
-      setImageError("Please select an image file.");
+      setImageError("Only photos can be posted.");
       event.target.value = "";
       return;
     }
 
     if (file.size > MAX_UPLOAD_BYTES) {
-      setImageError("Image must be smaller than 5 MB.");
+      setImageError("Photo must be smaller than 5 MB.");
       event.target.value = "";
       return;
     }
 
     try {
       setCompressing(true);
-
       const dataUrl = await compressImageFile(file);
-
       setImage(dataUrl);
-      setImageName(file.name);
     } catch (error) {
       console.error("Image compress error:", error);
       setImageError(
-        error.message || "Could not process image."
+        error.message || "Could not process photo."
       );
       setImage("");
-      setImageName("");
       event.target.value = "";
     } finally {
       setCompressing(false);
@@ -123,7 +120,6 @@ function CreatePost({
 
   function removeImage() {
     setImage("");
-    setImageName("");
     setImageError("");
 
     if (fileInputRef.current) {
@@ -134,59 +130,41 @@ function CreatePost({
   async function handleSubmit(event) {
     event.preventDefault();
 
-    if (!text.trim() && !image) {
+    if (busy || (!text.trim() && !image)) {
       return;
     }
 
-    const success = await onCreatePost({
-      text,
-      image,
-    });
+    const success = await onCreatePost({ text, image });
 
     if (success) {
       setText("");
-      setImage("");
-      setImageName("");
-      setImageError("");
-
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+      removeImage();
     }
   }
 
-  const userInitial =
-    currentUser?.username?.charAt(0).toUpperCase() ||
-    "U";
-
-  const busy = creating || compressing;
-
   return (
     <section className="create-post-card">
-      <div className="create-post-top">
-        <div className="create-post-avatar">
-          {currentUser?.photo ? (
-            <img
-              src={currentUser.photo}
-              alt={`@${currentUser.username}`}
-            />
-          ) : (
-            userInitial
-          )}
+      <form className="create-post-form" onSubmit={handleSubmit}>
+        <div className="create-post-top">
+          <div className="create-post-avatar">
+            {currentUser?.photo ? (
+              <img
+                src={currentUser.photo}
+                alt=""
+              />
+            ) : (
+              initial
+            )}
+          </div>
+
+          <div className="create-post-user">
+            <strong>
+              @{currentUser?.username || "user"}
+            </strong>
+            <span>Photo or text</span>
+          </div>
         </div>
 
-        <div className="create-post-user">
-          <strong>
-            @{currentUser?.username || "user"}
-          </strong>
-          <span>Share something new</span>
-        </div>
-      </div>
-
-      <form
-        className="create-post-form"
-        onSubmit={handleSubmit}
-      >
         <textarea
           value={text}
           onChange={(event) =>
@@ -203,22 +181,14 @@ function CreatePost({
         {image && (
           <div className="post-image-preview">
             <img src={image} alt="Preview" />
-
             <button
               type="button"
               onClick={removeImage}
-              title="Remove image"
-              aria-label="Remove image"
+              aria-label="Remove photo"
               disabled={busy}
             >
               ×
             </button>
-          </div>
-        )}
-
-        {imageName && (
-          <div className="selected-image-name">
-            📷 {imageName}
           </div>
         )}
 
@@ -228,42 +198,29 @@ function CreatePost({
           </div>
         )}
 
-        <div className="create-post-expiry-note">
-          Auto-deletes in 7 days · you can also delete
-          manually anytime
-        </div>
-
         <div className="create-post-footer">
           <div className="create-post-options">
             <button
               type="button"
-              onClick={() =>
-                fileInputRef.current?.click()
-              }
+              onClick={() => fileInputRef.current?.click()}
               disabled={busy}
-              title="Add photo"
             >
-              🖼️
-              <span>
-                {compressing ? "Loading..." : "Photo"}
-              </span>
+              {compressing ? "Loading photo..." : "Photo"}
             </button>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleImageChange}
-              hidden
-            />
           </div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImageChange}
+            hidden
+          />
 
           <button
             type="submit"
             className="create-post-btn"
-            disabled={
-              busy || (!text.trim() && !image)
-            }
+            disabled={busy || (!text.trim() && !image)}
           >
             {creating ? "Posting..." : "Post"}
           </button>
@@ -273,4 +230,4 @@ function CreatePost({
   );
 }
 
-export default CreatePost;
+export default CreateFeedPost;

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import EmojiPicker from "emoji-picker-react";
 
 function ChatWindow({
@@ -21,31 +22,58 @@ function ChatWindow({
   messagesEndRef,
   setSelectedUser,
 }) {
-  function handleInputFocus(event) {
-    /*
-      Keep header fixed like WhatsApp:
-      stop the browser from scrolling the page
-      when the keyboard opens.
-    */
-    window.scrollTo(0, 0);
-    document.documentElement.scrollTop = 0;
-    document.body.scrollTop = 0;
+  function scrollMessagesToEnd() {
+    const scroller = document.querySelector(
+      ".chat-area .messages"
+    );
 
-    const input = event.currentTarget;
+    if (!scroller) {
+      return;
+    }
 
-    requestAnimationFrame(() => {
-      window.scrollTo(0, 0);
-
-      try {
-        input.scrollIntoView({
-          block: "nearest",
-          inline: "nearest",
-        });
-      } catch {
-        /* ignore */
-      }
-    });
+    scroller.scrollTop = scroller.scrollHeight;
   }
+
+  function handleInputFocus() {
+    setShowEmojiPicker(false);
+
+    window.setTimeout(() => {
+      scrollMessagesToEnd();
+    }, 280);
+  }
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+
+    if (!viewport || !selectedUser) {
+      return undefined;
+    }
+
+    function onResize() {
+      const scroller = document.querySelector(
+        ".chat-area .messages"
+      );
+
+      if (!scroller) {
+        return;
+      }
+
+      const distanceFromBottom =
+        scroller.scrollHeight -
+        scroller.scrollTop -
+        scroller.clientHeight;
+
+      if (distanceFromBottom < 160) {
+        scroller.scrollTop = scroller.scrollHeight;
+      }
+    }
+
+    viewport.addEventListener("resize", onResize);
+
+    return () => {
+      viewport.removeEventListener("resize", onResize);
+    };
+  }, [selectedUser]);
 
   return (
     <main className="chat-area">
@@ -61,8 +89,14 @@ function ChatWindow({
               ←
             </button>
 
-            <div className="avatar">
-              {selectedUser.photo ? (
+            <div
+              className={`avatar ${
+                selectedUser.isGroup ? "group-avatar" : ""
+              }`}
+            >
+              {selectedUser.isGroup ? (
+                <span className="group-avatar-mark">E</span>
+              ) : selectedUser.photo ? (
                 <img
                   src={selectedUser.photo}
                   alt={`@${selectedUser.username}`}
@@ -77,16 +111,22 @@ function ChatWindow({
                 "U"
               )}
 
-              {selectedUserIsOnline && (
+              {selectedUserIsOnline && !selectedUser.isGroup && (
                 <span className="online-dot"></span>
               )}
             </div>
 
             <div>
-              <strong>@{selectedUser.username}</strong>
+              <strong>
+                {selectedUser.isGroup
+                  ? "Everyone"
+                  : `@${selectedUser.username}`}
+              </strong>
 
               <p>
-                {selectedUserIsTyping
+                {selectedUser.isGroup
+                  ? "All users are in this chat"
+                  : selectedUserIsTyping
                   ? "typing..."
                   : selectedUserIsOnline
                   ? "Online"
@@ -114,8 +154,9 @@ function ChatWindow({
               </div>
             ) : messages.length === 0 ? (
               <div className="no-messages">
-                Start a conversation with @
-                {selectedUser.username}
+                {selectedUser.isGroup
+                  ? "Everyone is already here. Say hello."
+                  : `Start a conversation with @${selectedUser.username}`}
               </div>
             ) : (
               messages.map((msg) => (
@@ -123,12 +164,21 @@ function ChatWindow({
                   key={msg.id}
                   className={`message ${msg.type}`}
                 >
-                  <p>{msg.text}</p>
+                  <p>
+                    {selectedUser.isGroup &&
+                      msg.type === "received" &&
+                      msg.senderUsername && (
+                        <strong className="message-sender">
+                          @{msg.senderUsername}
+                        </strong>
+                      )}
+                    {msg.text}
+                  </p>
 
                   <span>
                     {msg.time}
 
-                    {msg.type === "sent" && (
+                    {msg.type === "sent" && !selectedUser.isGroup && (
                       <span>
                         {" "}
                         {msg.read ? "✓✓" : "✓"}
@@ -154,7 +204,13 @@ function ChatWindow({
             <div ref={messagesEndRef} />
           </section>
 
-          <div className="message-input">
+          <form
+            className="message-input"
+            onSubmit={(event) => {
+              event.preventDefault();
+              sendMessage();
+            }}
+          >
             {showEmojiPicker && (
               <div className="emoji-picker-container">
                 <EmojiPicker
@@ -187,7 +243,7 @@ function ChatWindow({
 
             <button
               type="button"
-              className="input-action"
+              className="input-action notification-button"
               onClick={enableNotifications}
               title={
                 notificationEnabled
@@ -200,35 +256,32 @@ function ChatWindow({
                 : "🔕"}
             </button>
 
-            <button
-              type="button"
-              className="input-action"
-              title="Attach file"
-            >
-              📎
-            </button>
-
             <input
               ref={messageInputRef}
               type="text"
-              placeholder={`Message @${selectedUser.username}...`}
+              placeholder={
+                selectedUser.isGroup
+                  ? "Message everyone..."
+                  : `Message @${selectedUser.username}...`
+              }
               value={message}
               onChange={handleTyping}
               onKeyDown={handleKeyDown}
               onFocus={handleInputFocus}
               enterKeyHint="send"
               autoComplete="off"
+              autoCorrect="on"
+              inputMode="text"
             />
 
             <button
-              type="button"
+              type="submit"
               className="send-btn"
-              onClick={sendMessage}
-              disabled={sending}
+              disabled={sending || !message.trim()}
             >
               {sending ? "..." : "➤"}
             </button>
-          </div>
+          </form>
         </>
       ) : (
         <div className="no-chat-selected">

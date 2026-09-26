@@ -5,6 +5,11 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/user");
 const { sendOTP } = require("../mailer");
 const OTP = require("../models/otp");
+const Message = require("../models/Message");
+const Post = require("../models/Post");
+const FeedPost = require("../models/FeedPost");
+const GroupRead = require("../models/GroupRead");
+const { cleanInterests } = require("../constants/interests");
 
 const router = express.Router();
 
@@ -51,6 +56,24 @@ function cleanUsername(value) {
 
 function isCollegeEmail(email) {
   return email.toLowerCase().trim().endsWith(COLLEGE_DOMAIN);
+}
+
+function publicUser(user, { includeEmail = true } = {}) {
+  const payload = {
+    id: user._id,
+    username: user.username || "",
+    gender: user.gender || "",
+    photo: user.photo || "",
+    interests: Array.isArray(user.interests)
+      ? user.interests
+      : [],
+  };
+
+  if (includeEmail) {
+    payload.email = user.email;
+  }
+
+  return payload;
 }
 
 /* =====================================================
@@ -200,6 +223,7 @@ router.post("/register", async (req, res) => {
       email,
       password,
       gender,
+      interests,
     } = req.body;
 
     if (!username || !email || !password || !gender) {
@@ -218,6 +242,17 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Gender must be male or female.",
+      });
+    }
+
+    const cleanedInterests = cleanInterests(
+      interests || []
+    );
+
+    if (cleanedInterests.error) {
+      return res.status(400).json({
+        success: false,
+        message: cleanedInterests.error,
       });
     }
 
@@ -322,6 +357,7 @@ router.post("/register", async (req, res) => {
       password: hashedPassword,
       gender: cleanGender,
       photo: "",
+      interests: cleanedInterests.interests,
     });
 
     await OTP.deleteOne({
@@ -342,13 +378,7 @@ router.post("/register", async (req, res) => {
       success: true,
       message: "Account created successfully.",
       token,
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        gender: user.gender,
-        photo: user.photo || "",
-      },
+      user: publicUser(user),
     });
   } catch (error) {
     console.error("Register error:", error);
@@ -431,13 +461,7 @@ router.post("/login", async (req, res) => {
       success: true,
       message: "Login successful.",
       token,
-      user: {
-        id: user._id,
-        username: user.username || "",
-        email: user.email,
-        gender: user.gender || "",
-        photo: user.photo || "",
-      },
+      user: publicUser(user),
     });
   } catch (error) {
     console.error("Login error:", error);
@@ -468,13 +492,7 @@ router.get("/me", authenticateToken, async (req, res) => {
 
     return res.json({
       success: true,
-      user: {
-        id: user._id,
-        username: user.username || "",
-        email: user.email,
-        gender: user.gender || "",
-        photo: user.photo || "",
-      },
+      user: publicUser(user),
     });
   } catch (error) {
     console.error(
@@ -502,6 +520,7 @@ router.patch(
         username,
         photo,
         gender,
+        interests,
       } = req.body;
 
       let finalUsername;
@@ -584,6 +603,19 @@ router.patch(
         }
       }
 
+      let cleanedInterests;
+
+      if (interests !== undefined) {
+        cleanedInterests = cleanInterests(interests);
+
+        if (cleanedInterests.error) {
+          return res.status(400).json({
+            success: false,
+            message: cleanedInterests.error,
+          });
+        }
+      }
+
       const updateData = {};
 
       if (username !== undefined) {
@@ -598,6 +630,11 @@ router.patch(
         updateData.gender = String(gender)
           .trim()
           .toLowerCase();
+      }
+
+      if (cleanedInterests) {
+        updateData.interests =
+          cleanedInterests.interests;
       }
 
       const updatedUser =
@@ -621,14 +658,7 @@ router.patch(
         success: true,
         message:
           "Profile updated successfully.",
-        user: {
-          id: updatedUser._id,
-          username:
-            updatedUser.username || "",
-          email: updatedUser.email,
-          gender: updatedUser.gender || "",
-          photo: updatedUser.photo || "",
-        },
+        user: publicUser(updatedUser),
       });
     } catch (error) {
       console.error(
@@ -676,13 +706,9 @@ router.get(
 
       const formattedUsers =
         users.map((user) => ({
-          id: user._id,
-          username:
-            user.username || "",
-          gender:
-            user.gender || "",
-          photo:
-            user.photo || "",
+          ...publicUser(user, {
+            includeEmail: false,
+          }),
           initial:
             user.username
               ?.charAt(0)
@@ -707,6 +733,112 @@ router.get(
         success: false,
         message:
           "Could not load users.",
+      });
+    }
+  }
+);
+
+/*
+  DELETE ACCOUNT PERMANENTLY
+  DELETE /api/auth/account
+*/
+router.delete(
+  "/account",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const password = String(
+        req.body?.password || ""
+      );
+
+      if (!password) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Enter your password to delete your account.",
+        });
+      }
+
+      const user = await User.findById(req.userId);
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "Account not found.",
+        });
+      }
+
+      const passwordMatch = await bcrypt.compare(
+        password,
+        user.password
+      );
+
+      if (!passwordMatch) {
+        return res.status(401).json({
+          success: false,
+          message: "Password is incorrect.",
+        });
+      }
+
+      const userId = user._id;
+
+      await Message.deleteMany({
+        $or: [
+          { sender: userId },
+          { receiver: userId },
+        ],
+      });
+
+      await GroupRead.deleteOne({ user: userId });
+
+      await Post.deleteMany({ author: userId });
+      await FeedPost.deleteMany({ author: userId });
+
+      await Post.updateMany(
+        {},
+        {
+          $pull: {
+            likes: userId,
+            viewers: userId,
+          },
+        }
+      );
+
+      await FeedPost.updateMany(
+        {},
+        { $pull: { likes: userId } }
+      );
+
+      await OTP.deleteMany({ email: user.email });
+
+      await User.findByIdAndDelete(userId);
+
+      const io = req.app.get("io");
+
+      if (io) {
+        io.emit("userDeleted", {
+          userId: String(userId),
+        });
+
+        const sockets = await io
+          .in(`user_${userId}`)
+          .fetchSockets();
+
+        sockets.forEach((socket) => {
+          socket.disconnect(true);
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: "Account deleted permanently.",
+      });
+    } catch (error) {
+      console.error("Delete account error:", error);
+
+      return res.status(500).json({
+        success: false,
+        message: "Could not delete account.",
       });
     }
   }

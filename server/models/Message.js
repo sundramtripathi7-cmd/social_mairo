@@ -11,7 +11,14 @@ const messageSchema = new mongoose.Schema(
     receiver: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      required: function requiredReceiver() {
+        return !this.group;
+      },
+    },
+
+    group: {
+      type: String,
+      default: null,
     },
 
     text: {
@@ -34,6 +41,8 @@ const messageSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+messageSchema.index({ group: 1, createdAt: 1 });
 
 const Message = mongoose.model(
   "Message",

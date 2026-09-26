@@ -37,6 +37,11 @@ const userSchema = new mongoose.Schema(
       enum: ["male", "female"],
       required: true,
     },
+
+    interests: {
+      type: [String],
+      default: [],
+    },
   },
   {
     timestamps: true,

@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
+import InterestPicker from "../Profile/InterestPicker";
 
 function SignupPage({ setPage, setCurrentUser, apiUrl }) {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [gender, setGender] = useState("");
+  const [interests, setInterests] = useState([]);
 
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
@@ -144,6 +146,7 @@ function SignupPage({ setPage, setCurrentUser, apiUrl }) {
             email,
             password,
             gender,
+            interests,
             otp,
           }),
         }
@@ -196,7 +199,7 @@ function SignupPage({ setPage, setCurrentUser, apiUrl }) {
         <h1>Create Account</h1>
 
         <p className="auth-subtitle">
-          Join chats and the 7-day auto-delete feed
+          Join chats and 24-hour status updates
         </p>
 
         <form>
@@ -301,6 +304,18 @@ function SignupPage({ setPage, setCurrentUser, apiUrl }) {
               Female
             </option>
           </select>
+
+          <label>Interests</label>
+
+          <p className="interest-help">
+            Add interests in your profile to rank people by match.
+          </p>
+
+          <InterestPicker
+            selected={interests}
+            onChange={setInterests}
+            disabled={loading}
+          />
 
           {error && (
             <p className="auth-error">

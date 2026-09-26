@@ -63,7 +63,7 @@ function LoginPage({ setPage, setCurrentUser, apiUrl }) {
         <h1>Welcome Back</h1>
 
         <p className="auth-subtitle">
-          Sign in to chat and share on the feed
+          Sign in to chat and share status updates
         </p>
 
         <form>

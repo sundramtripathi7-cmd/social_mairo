@@ -1,7 +1,96 @@
-import UserList from "./UserList";
+import { useEffect, useRef, useState } from "react";
+import { everyoneGroup } from "../../constants/group";
+
+const FILTERS = [
+  { id: "all", label: "All", short: "All" },
+  { id: "male", label: "Male", short: "M" },
+  { id: "female", label: "Female", short: "F" },
+];
+
+function GenderCorner({
+  genderFilter,
+  setGenderFilter,
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+  const current =
+    FILTERS.find((item) => item.id === genderFilter) ||
+    FILTERS[0];
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    function handlePointerDown(event) {
+      if (!rootRef.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener(
+      "pointerdown",
+      handlePointerDown
+    );
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener(
+        "pointerdown",
+        handlePointerDown
+      );
+      document.removeEventListener(
+        "keydown",
+        handleKeyDown
+      );
+    };
+  }, [open]);
+
+  return (
+    <div className="gender-corner" ref={rootRef}>
+      <button
+        type="button"
+        className={`gender-corner-btn ${
+          genderFilter === "all" ? "" : "active"
+        }`}
+        aria-expanded={open}
+        aria-label={`People filter: ${current.label}`}
+        onClick={() => setOpen((previous) => !previous)}
+      >
+        {current.short}
+      </button>
+
+      {open && (
+        <div className="gender-corner-menu" role="menu">
+          {FILTERS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="menuitem"
+              className={
+                genderFilter === item.id ? "active" : ""
+              }
+              onClick={() => {
+                setGenderFilter(item.id);
+                setOpen(false);
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Sidebar({
-  users,
   filteredUsers,
   selectedUserId,
   unreadCounts,
@@ -11,14 +100,23 @@ function Sidebar({
   setGenderFilter,
   selectUser,
   currentUser,
-  showOnline,
-  setShowOnline,
   openProfile,
   logout,
   error,
 }) {
+  const profileInitial = currentUser?.username
+    ? currentUser.username.charAt(0).toUpperCase()
+    : currentUser?.name
+      ? currentUser.name.charAt(0).toUpperCase()
+      : "U";
+
   return (
     <aside className="sidebar">
+      <GenderCorner
+        genderFilter={genderFilter}
+        setGenderFilter={setGenderFilter}
+      />
+
       <div className="sidebar-top">
         <h2>mairochat</h2>
 
@@ -39,6 +137,12 @@ function Sidebar({
         />
       </div>
 
+      {currentUser?.interests?.length > 0 && (
+        <p className="match-hint">
+          Sorted by interest match
+        </p>
+      )}
+
       {/* ERROR */}
       {error && (
         <p className="jsx-style-2">
@@ -46,41 +150,41 @@ function Sidebar({
         </p>
       )}
 
-      {/* GENDER FILTER */}
-      <div className="gender-filter">
-        <button
-          type="button"
-          className={
-            genderFilter === "all" ? "active" : ""
-          }
-          onClick={() => setGenderFilter("all")}
-        >
-          All
-        </button>
-
-        <button
-          type="button"
-          className={
-            genderFilter === "male" ? "active" : ""
-          }
-          onClick={() => setGenderFilter("male")}
-        >
-          Male
-        </button>
-
-        <button
-          type="button"
-          className={
-            genderFilter === "female" ? "active" : ""
-          }
-          onClick={() => setGenderFilter("female")}
-        >
-          Female
-        </button>
-      </div>
-
       {/* USERS */}
       <div className="chat-list">
+        {(!search.trim() ||
+          "everyone".includes(search.trim().toLowerCase()) ||
+          "all users".includes(search.trim().toLowerCase())) && (
+          <div
+            className={`chat-user group-user ${
+              selectedUserId === everyoneGroup.id ? "active" : ""
+            }`}
+            onClick={() => selectUser(everyoneGroup)}
+          >
+            <div className="avatar group-avatar">E</div>
+
+            <div className="chat-info">
+              <div className="chat-name">
+                <strong>Everyone</strong>
+              </div>
+
+              <div className="chat-status-row">
+                <span className="group-tag">
+                  All users
+                </span>
+
+                {(unreadCounts[everyoneGroup.id] || 0) > 0 && (
+                  <span className="unread-badge">
+                    {unreadCounts[everyoneGroup.id] > 99
+                      ? "99+"
+                      : unreadCounts[everyoneGroup.id]}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {filteredUsers.length > 0 ? (
           filteredUsers.map((user) => {
             const userId = String(
@@ -152,6 +256,15 @@ function Sidebar({
                         : "Offline"}
                     </span>
 
+                    {user.matchPercent > 0 && (
+                      <span
+                        className="match-badge"
+                        title={`${user.matchPercent}% of your interests`}
+                      >
+                        {user.matchPercent}% match
+                      </span>
+                    )}
+
                     {unread > 0 && (
                       <span className="unread-badge">
                         {unread > 99
@@ -166,7 +279,7 @@ function Sidebar({
           })
         ) : (
           <div className="no-results">
-            {search
+            {search || genderFilter !== "all"
               ? "No users found"
               : "No other users yet"}
           </div>
@@ -186,57 +299,21 @@ function Sidebar({
               alt={currentUser.name}
             />
           ) : (
-            currentUser?.name
-              ? currentUser.name
-                  .charAt(0)
-                  .toUpperCase()
-              : "U"
+            profileInitial
           )}
 
-          {showOnline && (
-            <span className="online-dot"></span>
-          )}
+          <span className="online-dot"></span>
         </div>
 
         <div className="jsx-style-5">
           <strong>
-            {currentUser?.name || "My Profile"}
+            {currentUser?.username
+              ? `@${currentUser.username}`
+              : currentUser?.name || "My Profile"}
           </strong>
 
-          <p
-            className="jsx-style-6"
-            onClick={(event) => {
-              event.stopPropagation();
-
-              setShowOnline(
-                (previous) => !previous
-              );
-            }}
-          >
-            {showOnline
-              ? "🟢 Online"
-              : "⚫ Invisible"}
-          </p>
+          <p className="jsx-style-6">Online</p>
         </div>
-
-        <button
-          className="jsx-style-7"
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-
-            setShowOnline(
-              (previous) => !previous
-            );
-          }}
-          title={
-            showOnline
-              ? "Hide my online status"
-              : "Show my online status"
-          }
-        >
-          {showOnline ? "🟢" : "⚫"}
-        </button>
 
         <button
           className="logout-btn"
