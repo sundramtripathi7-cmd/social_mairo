@@ -112,17 +112,19 @@ function Sidebar({
 
   return (
     <aside className="sidebar">
-      <GenderCorner
-        genderFilter={genderFilter}
-        setGenderFilter={setGenderFilter}
-      />
-
       <div className="sidebar-top">
         <h2>mairochat</h2>
 
-        <button className="new-chat-btn">
-          + New
-        </button>
+        <div className="sidebar-actions">
+          <GenderCorner
+            genderFilter={genderFilter}
+            setGenderFilter={setGenderFilter}
+          />
+
+          <button className="new-chat-btn" type="button">
+            + New
+          </button>
+        </div>
       </div>
 
       {/* SEARCH */}

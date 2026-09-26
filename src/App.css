@@ -137,14 +137,20 @@ img {
 
 .auth-page {
   width: 100%;
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100%;
+  min-height: 0;
 
   display: flex;
   align-items: center;
   justify-content: center;
 
-  padding: clamp(1rem, 4vw, 2.5rem);
+  padding:
+    max(1rem, env(safe-area-inset-top))
+    max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom))
+    max(1rem, env(safe-area-inset-left));
+
+  overflow-y: auto;
 
   background:
     radial-gradient(
@@ -413,11 +419,42 @@ img {
   max-height: 100%;
 
   display: flex;
+  flex-direction: column;
 
   background: var(--bg);
 
   overflow: hidden;
   overscroll-behavior: none;
+  position: relative;
+}
+
+.app-bar {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: center;
+  padding:
+    max(0.45rem, env(safe-area-inset-top))
+    max(0.75rem, env(safe-area-inset-right))
+    0.45rem
+    max(0.75rem, env(safe-area-inset-left));
+  background: #111b21;
+  border-bottom: 1px solid var(--border);
+}
+
+.app-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.sidebar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
 }
 
 /* =========================================================
@@ -1772,8 +1809,14 @@ img {
     flex-direction: column;
   }
 
+  .chat-app.chat-open .app-bar,
   .chat-app.chat-open .app-view-switcher {
     display: none;
+  }
+
+  .chat-app.chat-open .app-stage {
+    position: absolute;
+    inset: 0;
   }
 
   .mobile-back-btn {
@@ -1936,30 +1979,25 @@ img {
 }
 
 .app-view-switcher {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  z-index: 30;
   display: flex;
   gap: 4px;
-  max-width: calc(100% - 4.6rem);
+  width: min(100%, 28rem);
   padding: 3px;
   background: #202c33;
   border: 1px solid #2a3942;
-  border-radius: 10px;
+  border-radius: 12px;
 }
 
 .gender-corner {
-  position: absolute;
-  top: 12px;
-  right: 10px;
+  position: relative;
   z-index: 40;
 }
 
 .gender-corner-btn {
-  min-width: 36px;
-  height: 32px;
-  padding: 0 8px;
+  min-width: 2.6rem;
+  min-height: 2.2rem;
+  height: auto;
+  padding: 0 0.7rem;
   border: 1px solid #2a3942;
   border-radius: 999px;
   background: #111b21;
@@ -2005,13 +2043,15 @@ img {
 }
 
 .app-view-switcher button {
+  flex: 1 1 0;
+  min-height: 2.5rem;
   border: 0;
-  border-radius: 7px;
-  padding: 6px 10px;
+  border-radius: 9px;
+  padding: 0.35rem 0.7rem;
   background: transparent;
   color: #aebac1;
   font: inherit;
-  font-size: 12px;
+  font-size: 0.84rem;
   font-weight: 700;
   cursor: pointer;
 }
@@ -2039,7 +2079,7 @@ img {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  padding: 58px 16px 16px;
+  padding: 16px 16px 16px;
   background: #111b21;
   border-right: 1px solid #26343b;
 }
@@ -2600,26 +2640,18 @@ img {
 ========================================================= */
 
 @media (max-width: 700px) {
-  .app-view-switcher {
-    top: 9px;
-    left: 10px;
-  }
-
   .app-view-switcher button {
-    padding: 6px 8px;
-    font-size: 11px;
-  }
-
-  .chat-app > .sidebar {
-    padding-top: 42px;
+    min-height: 2.55rem;
+    padding: 0.4rem 0.4rem;
+    font-size: 0.8rem;
   }
 
   .feed-side-panel {
     width: 100%;
     min-width: 100%;
     max-width: none;
-    height: 100vh;
-    padding: 54px 12px 12px;
+    height: 100%;
+    padding: 16px 12px 12px;
   }
 
   .feed-page {
@@ -2653,14 +2685,6 @@ img {
 }
 
 @media (max-width: 420px) {
-  .app-view-switcher {
-    left: 8px;
-  }
-
-  .app-view-switcher button {
-    font-size: 10px;
-  }
-
   .feed-container {
     padding-left: 8px;
     padding-right: 8px;
@@ -2693,7 +2717,7 @@ img {
 
   .feed-container {
     width: 100%;
-    padding: 58px 10px 32px;
+    padding: 16px 10px 32px;
     box-sizing: border-box;
   }
 
@@ -2732,7 +2756,7 @@ img {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  padding: 58px 0 12px;
+  padding: 8px 0 12px;
   background: #111b21;
   border-right: 1px solid #26343b;
   min-height: 0;
@@ -3228,9 +3252,14 @@ img {
   padding: 14px;
 }
 
+.status-composer-top {
+  padding-top: max(14px, env(safe-area-inset-top));
+}
+
 .status-composer-bottom {
   flex-direction: column;
   align-items: stretch;
+  padding-bottom: max(14px, env(safe-area-inset-bottom));
 }
 
 .status-send-btn,
@@ -3370,6 +3399,27 @@ img {
   background: rgba(90, 20, 20, 0.85);
   color: #ffd2cc;
   font-size: 13px;
+}
+
+@media (max-width: 48rem) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  .profile {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+}
+
+@media (min-width: 80rem) {
+  .chat-app {
+    width: min(100%, 90rem);
+    margin-inline: auto;
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+  }
 }
 
 @media (max-width: 700px) {

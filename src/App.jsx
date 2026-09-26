@@ -502,44 +502,47 @@ function ChatPage({
           : ""
       }`}
     >
-      <div className="app-view-switcher">
-        <button
-          type="button"
-          className={
-            activeView === "chat"
-              ? "active"
-              : ""
-          }
-          onClick={openChatView}
-        >
-          💬 Chats
-        </button>
+      <header className="app-bar">
+        <div className="app-view-switcher">
+          <button
+            type="button"
+            className={
+              activeView === "chat"
+                ? "active"
+                : ""
+            }
+            onClick={openChatView}
+          >
+            Chats
+          </button>
 
-        <button
-          type="button"
-          className={
-            activeView === "status"
-              ? "active"
-              : ""
-          }
-          onClick={openStatusView}
-        >
-          Status
-        </button>
+          <button
+            type="button"
+            className={
+              activeView === "status"
+                ? "active"
+                : ""
+            }
+            onClick={openStatusView}
+          >
+            Status
+          </button>
 
-        <button
-          type="button"
-          className={
-            activeView === "feed"
-              ? "active"
-              : ""
-          }
-          onClick={openFeedView}
-        >
-          Feed
-        </button>
-      </div>
+          <button
+            type="button"
+            className={
+              activeView === "feed"
+                ? "active"
+                : ""
+            }
+            onClick={openFeedView}
+          >
+            Feed
+          </button>
+        </div>
+      </header>
 
+      <div className="app-stage">
       {activeView === "chat" && (
         <>
           <Sidebar
@@ -644,6 +647,8 @@ function ChatPage({
           openChatView={openChatView}
         />
       )}
+
+      </div>
 
       <ProfileModal
         key={showProfile ? "profile-open" : "profile-closed"}
