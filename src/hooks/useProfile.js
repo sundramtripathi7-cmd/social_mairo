@@ -9,7 +9,11 @@ function useProfile({
     useState(false);
 
   const [profileName, setProfileName] =
-    useState(currentUser?.name || "");
+    useState(
+      currentUser?.name ||
+        currentUser?.username ||
+        ""
+    );
 
   const [profileUsername, setProfileUsername] =
     useState(currentUser?.username || "");
@@ -17,7 +21,13 @@ function useProfile({
   const [profilePhoto, setProfilePhoto] =
     useState(currentUser?.photo || "");
 
+  const [profileInterests, setProfileInterests] =
+    useState(currentUser?.interests || []);
+
   const [profileSaving, setProfileSaving] =
+    useState(false);
+
+  const [deletingAccount, setDeletingAccount] =
     useState(false);
 
   const [profileError, setProfileError] =
@@ -25,7 +35,9 @@ function useProfile({
 
   function openProfile() {
     setProfileName(
-      currentUser?.name || ""
+      currentUser?.name ||
+        currentUser?.username ||
+        ""
     );
 
     setProfileUsername(
@@ -36,12 +48,16 @@ function useProfile({
       currentUser?.photo || ""
     );
 
+    setProfileInterests(
+      currentUser?.interests || []
+    );
+
     setProfileError("");
     setShowProfile(true);
   }
 
   function closeProfile() {
-    if (profileSaving) {
+    if (profileSaving || deletingAccount) {
       return;
     }
 
@@ -264,6 +280,7 @@ function useProfile({
                 cleanUsername,
               photo:
                 profilePhoto || "",
+              interests: profileInterests,
             }),
           }
         );
@@ -305,6 +322,10 @@ function useProfile({
         updatedUser.photo || ""
       );
 
+      setProfileInterests(
+        updatedUser.interests || []
+      );
+
       setShowProfile(false);
     } catch (error) {
       console.error(error);
@@ -318,22 +339,81 @@ function useProfile({
     }
   }
 
+  async function deleteAccount(password) {
+    const token = sessionStorage.getItem("token");
+
+    if (!token) {
+      setProfileError("Please login again.");
+      return false;
+    }
+
+    if (!password) {
+      setProfileError(
+        "Enter your password to delete your account."
+      );
+      return false;
+    }
+
+    try {
+      setDeletingAccount(true);
+      setProfileError("");
+
+      const response = await fetch(
+        `${apiUrl}/auth/account`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ password }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message ||
+            "Could not delete account."
+        );
+      }
+
+      return true;
+    } catch (error) {
+      console.error(error);
+
+      setProfileError(
+        error.message ||
+          "Could not delete account."
+      );
+
+      return false;
+    } finally {
+      setDeletingAccount(false);
+    }
+  }
+
   return {
     showProfile,
     profileName,
     profileUsername,
     profilePhoto,
+    profileInterests,
     profileSaving,
+    deletingAccount,
     profileError,
 
     setProfileName,
     setProfileUsername,
     setProfilePhoto,
+    setProfileInterests,
 
     openProfile,
     closeProfile,
     handleProfilePhoto,
     saveProfile,
+    deleteAccount,
   };
 }
 

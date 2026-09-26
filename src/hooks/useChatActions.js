@@ -1,4 +1,5 @@
-import { useCallback, useRef } from "react";
+import { useEffect, useRef } from "react";
+import { EVERYONE_GROUP_ID } from "../constants/group";
 
 function useChatActions({
   selectedUserId,
@@ -13,105 +14,62 @@ function useChatActions({
   setCurrentUser,
   setPage,
 }) {
-  const sendingRef = useRef(false);
-  const typingTimeoutRef = useRef(null);
-
-  /* =====================================================
-     SELECT USER
-  ===================================================== */
+  const typingTimeoutRef =
+    useRef(null);
 
   function selectUser(user) {
-    if (!user) {
-      return;
-    }
-
-    const userId = String(
-      user.id || user._id || ""
-    );
-
-    if (!userId) {
-      console.error(
-        "Cannot select user: user ID missing.",
-        user
-      );
-      return;
-    }
-
-    console.log(
-      "SELECTING USER:",
-      user.username,
-      userId
-    );
-
-    // Stop previous typing indicator
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = null;
-    }
-
-    if (socketRef.current && selectedUserId) {
-      socketRef.current.emit("typing", {
-        receiverId: selectedUserId,
-        isTyping: false,
-      });
-    }
-
-    // Select new user
     setSelectedUser(user);
 
-    // Keep ref updated immediately
-    if (selectedUserRef) {
-      selectedUserRef.current = user;
-    }
+    selectedUserRef.current =
+      user;
 
-    // Clear current input/error
     setMessage("");
     setError("");
     setTypingUserId(null);
 
-    // Clear unread count for this user
-    if (setUnreadCounts) {
-      setUnreadCounts((previous) => ({
-        ...previous,
-        [userId]: 0,
-      }));
-    }
+    const userId = String(
+      user.id || user._id
+    );
 
-    // Add browser history state for mobile back button
-    if (
-      typeof window !== "undefined" &&
-      window.history
-    ) {
-      window.history.pushState(
-        { chatApp: true, userId },
-        "",
-        window.location.href
-      );
-    }
+    setUnreadCounts((previous) => {
+      const updated = {
+        ...previous,
+      };
+
+      delete updated[userId];
+
+      return updated;
+    });
   }
 
-  /* =====================================================
-     TYPING
-  ===================================================== */
-
-  function handleTyping(event) {
-    const value = event.target.value;
+  function handleTyping(e) {
+    const value =
+      e.target.value;
 
     setMessage(value);
 
     if (
+      !socketRef.current ||
       !selectedUserId ||
-      !socketRef.current
+      selectedUserId === EVERYONE_GROUP_ID
     ) {
       return;
     }
 
-    socketRef.current.emit("typing", {
-      receiverId: selectedUserId,
-      isTyping: true,
-    });
+    socketRef.current.emit(
+      "typing",
+      {
+        receiverId:
+          selectedUserId,
 
-    if (typingTimeoutRef.current) {
+        isTyping:
+          value.trim().length > 0,
+      }
+    );
+
+    if (
+      typingTimeoutRef.current
+    ) {
       clearTimeout(
         typingTimeoutRef.current
       );
@@ -119,214 +77,106 @@ function useChatActions({
 
     typingTimeoutRef.current =
       setTimeout(() => {
-        if (socketRef.current) {
-          socketRef.current.emit(
-            "typing",
-            {
-              receiverId:
-                selectedUserId,
-              isTyping: false,
-            }
-          );
-        }
-
-        setTypingUserId(null);
-      }, 800);
-  }
-
-  /* =====================================================
-     SEND MESSAGE
-  ===================================================== */
-
-  async function handleSendMessage(text) {
-    const cleanMessage =
-      String(text || "").trim();
-
-    if (!cleanMessage) {
-      return false;
-    }
-
-    if (!selectedUserId) {
-      setError("Please select a user first.");
-      return false;
-    }
-
-    if (sendingRef.current) {
-      return false;
-    }
-
-    sendingRef.current = true;
-
-    try {
-      /*
-       * sendMessage comes from useMessages.
-       * It handles the API request and message state.
-       */
-      const result =
-        await sendMessage(cleanMessage);
-
-      if (result === false) {
-        return false;
-      }
-
-      setMessage("");
-
-      // Stop typing indicator
-      if (typingTimeoutRef.current) {
-        clearTimeout(
-          typingTimeoutRef.current
-        );
-        typingTimeoutRef.current = null;
-      }
-
-      if (socketRef.current) {
-        socketRef.current.emit(
+        socketRef.current?.emit(
           "typing",
           {
             receiverId:
               selectedUserId,
+
             isTyping: false,
           }
         );
-      }
-
-      return true;
-    } catch (error) {
-      console.error(
-        "Send message error:",
-        error
-      );
-
-      setError(
-        error.message ||
-          "Could not send message."
-      );
-
-      return false;
-    } finally {
-      sendingRef.current = false;
-    }
+      }, 1200);
   }
 
-  /* =====================================================
-     KEY DOWN
-  ===================================================== */
-
-  function handleKeyDown(event) {
-    if (event.key !== "Enter") {
+  async function handleKeyDown(e) {
+    if (e.key !== "Enter") {
       return;
     }
 
-    /*
-     * Shift + Enter can still create a new line.
-     */
-    if (event.shiftKey) {
-      return;
-    }
-
-    event.preventDefault();
+    e.preventDefault();
 
     const text =
-      event.currentTarget?.value || "";
+      e.currentTarget.value;
 
-    handleSendMessage(text);
-  }
-
-  /* =====================================================
-     ENABLE NOTIFICATIONS
-  ===================================================== */
-
-  async function enableNotifications() {
-    if (
-      typeof window === "undefined" ||
-      !("Notification" in window)
-    ) {
+    if (!text.trim()) {
       return;
     }
 
     try {
-      const permission =
-        await Notification.requestPermission();
+      const sent =
+        await sendMessage(text);
 
-      return permission === "granted";
-    } catch (error) {
-      console.error(
-        "Notification permission error:",
-        error
+      if (sent) {
+        setMessage("");
+      }
+    } catch {
+      setError(
+        "Message could not be sent."
+      );
+    }
+  }
+
+  async function handleSendMessage(
+    messageText
+  ) {
+    try {
+      const sent =
+        await sendMessage(
+          messageText
+        );
+
+      if (sent) {
+        setMessage("");
+      }
+
+      return sent;
+    } catch {
+      setError(
+        "Message could not be sent."
       );
 
       return false;
     }
   }
 
-  /* =====================================================
-     DELETE MESSAGE
-     
-     Message deletion is already handled by
-     useMessages, so this hook does not duplicate it.
-  ===================================================== */
-
-  /* =====================================================
-     LOGOUT
-  ===================================================== */
-
-  const handleLogout = useCallback(() => {
-    console.log("LOGOUT CLICKED");
-
+  function logout() {
     if (socketRef.current) {
       socketRef.current.disconnect();
+
       socketRef.current = null;
     }
 
-    if (typingTimeoutRef.current) {
-      clearTimeout(
-        typingTimeoutRef.current
-      );
-      typingTimeoutRef.current = null;
-    }
+    sessionStorage.removeItem(
+      "token"
+    );
 
-    // Clear local storage
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    sessionStorage.removeItem(
+      "user"
+    );
 
-    // Clear session storage
-    sessionStorage.removeItem("token");
-    sessionStorage.removeItem("user");
-
-    // Reset chat
-    setSelectedUser(null);
-
-    if (selectedUserRef) {
-      selectedUserRef.current = null;
-    }
-
-    setTypingUserId(null);
-    setMessage("");
-
-    // Go to login
     setCurrentUser(null);
     setPage("login");
-  }, [
-    socketRef,
-    selectedUserRef,
-    setSelectedUser,
-    setTypingUserId,
-    setMessage,
-    setCurrentUser,
-    setPage,
-  ]);
+  }
 
-  /* =====================================================
-     RETURN
-  ===================================================== */
+  useEffect(() => {
+    return () => {
+      if (
+        typingTimeoutRef.current
+      ) {
+        clearTimeout(
+          typingTimeoutRef.current
+        );
+      }
+    };
+  }, []);
 
   return {
     selectUser,
     handleTyping,
     handleKeyDown,
     handleSendMessage,
-    enableNotifications,
-    handleLogout,
+    logout,
   };
 }
 

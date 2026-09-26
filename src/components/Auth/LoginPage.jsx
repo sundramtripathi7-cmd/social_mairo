@@ -81,7 +81,7 @@ function LoginPage({ setPage, setCurrentUser, apiUrl }) {
         <h1>Welcome Back</h1>
 
         <p className="auth-subtitle">
-          Login to continue chatting
+          Sign in to chat and share status updates
         </p>
 
         <form

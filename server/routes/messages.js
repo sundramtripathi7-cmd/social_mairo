@@ -2,6 +2,12 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
 const Message = require("../models/Message");
+const User = require("../models/user");
+const GroupRead = require("../models/GroupRead");
+const {
+  EVERYONE_GROUP_ID,
+  EVERYONE_ROOM,
+} = require("../constants/group");
 
 const router = express.Router();
 
@@ -130,6 +136,22 @@ router.get(
           (counts[senderId] || 0) + 1;
       });
 
+      const readState = await GroupRead.findOne({
+        user: req.userId,
+      }).select("lastReadAt");
+
+      const since = readState?.lastReadAt || new Date(0);
+
+      const groupUnread = await Message.countDocuments({
+        group: EVERYONE_GROUP_ID,
+        sender: { $ne: req.userId },
+        createdAt: { $gt: since },
+      });
+
+      if (groupUnread > 0) {
+        counts[EVERYONE_GROUP_ID] = groupUnread;
+      }
+
       return res.json({
         success: true,
         counts,
@@ -147,6 +169,160 @@ router.get(
     }
   }
 );
+
+router.get(
+  "/group",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const messages = await Message.find({
+        group: EVERYONE_GROUP_ID,
+      })
+        .sort({ createdAt: -1 })
+        .limit(200)
+        .populate("sender", "username photo");
+
+      messages.reverse();
+
+      return res.json({
+        success: true,
+        group: {
+          id: EVERYONE_GROUP_ID,
+          name: "Everyone",
+        },
+        messages: messages.map((message) =>
+          formatGroupMessage(message, req.userId)
+        ),
+      });
+    } catch (error) {
+      console.error("Get group messages error:", error);
+
+      return res.status(500).json({
+        success: false,
+        message: "Could not load the group chat.",
+      });
+    }
+  }
+);
+
+router.post(
+  "/group",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const text = String(req.body?.text || "").trim();
+
+      if (!text) {
+        return res.status(400).json({
+          success: false,
+          message: "Message is required.",
+        });
+      }
+
+      if (text.length > 2000) {
+        return res.status(400).json({
+          success: false,
+          message: "Message is too long.",
+        });
+      }
+
+      const sender = await User.findById(req.userId).select(
+        "username photo"
+      );
+
+      if (!sender) {
+        return res.status(404).json({
+          success: false,
+          message: "Account not found.",
+        });
+      }
+
+      const message = await Message.create({
+        sender: req.userId,
+        group: EVERYONE_GROUP_ID,
+        text,
+        read: false,
+      });
+
+      const formatted = formatGroupMessage(
+        {
+          ...message.toObject(),
+          sender,
+        },
+        req.userId
+      );
+
+      const io = req.app.get("io");
+
+      if (io) {
+        io.to(EVERYONE_ROOM).emit("groupMessage", {
+          ...formatted,
+          type: "received",
+        });
+      }
+
+      return res.status(201).json({
+        success: true,
+        message: formatted,
+      });
+    } catch (error) {
+      console.error("Send group message error:", error);
+
+      return res.status(500).json({
+        success: false,
+        message: "Could not send the group message.",
+      });
+    }
+  }
+);
+
+router.post(
+  "/group/read",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      await GroupRead.findOneAndUpdate(
+        { user: req.userId },
+        { $set: { lastReadAt: new Date() } },
+        { upsert: true }
+      );
+
+      return res.json({
+        success: true,
+      });
+    } catch (error) {
+      console.error("Group read error:", error);
+
+      return res.status(500).json({
+        success: false,
+        message: "Could not update the group chat.",
+      });
+    }
+  }
+);
+
+function formatGroupMessage(message, currentUserId) {
+  const sender = message.sender || {};
+  const senderId = String(sender._id || sender);
+
+  return {
+    id: message._id,
+    text: message.text,
+    type:
+      senderId === String(currentUserId)
+        ? "sent"
+        : "received",
+    time: new Date(message.createdAt).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    createdAt: message.createdAt,
+    sender: senderId,
+    senderUsername: sender.username || "",
+    senderPhoto: sender.photo || "",
+    group: EVERYONE_GROUP_ID,
+  };
+}
 
 // =====================================================
 // DELETE MESSAGE
@@ -179,8 +355,6 @@ router.delete(
         });
       }
 
-      const receiverId = message.receiver.toString();
-
       await Message.deleteOne({
         _id: messageId,
       });
@@ -188,21 +362,28 @@ router.delete(
       const io = req.app.get("io");
 
       if (io) {
-        // Notify receiver
-        io.to(receiverId).emit(
-          "messageDeleted",
-          {
-            messageId: messageId,
-          }
-        );
+        const payload = {
+          messageId: messageId,
+        };
 
-        // Notify sender's other connected devices
-        io.to(req.userId.toString()).emit(
-          "messageDeleted",
-          {
-            messageId: messageId,
-          }
-        );
+        if (message.group) {
+          io.to(EVERYONE_ROOM).emit(
+            "messageDeleted",
+            payload
+          );
+        } else if (message.receiver) {
+          const receiverId = message.receiver.toString();
+
+          io.to(receiverId).emit(
+            "messageDeleted",
+            payload
+          );
+
+          io.to(req.userId.toString()).emit(
+            "messageDeleted",
+            payload
+          );
+        }
       }
 
       return res.json({

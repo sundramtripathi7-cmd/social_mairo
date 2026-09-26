@@ -1,32 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
+import { matchPercent } from "../constants/interests";
 
 function useUsers({
   apiUrl,
   currentUser,
   currentUserId,
+  myInterests,
   setSelectedUser,
 }) {
   const [users, setUsers] = useState([]);
-  const [loadingUsers, setLoadingUsers] =
-    useState(true);
-
-  const [unreadCounts, setUnreadCounts] =
-    useState({});
-
-  const [search, setSearch] =
-    useState("");
-
-  const [genderFilter, setGenderFilter] =
-    useState("all");
-
-  const [onlineUsers, setOnlineUsers] =
-    useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [unreadCounts, setUnreadCounts] = useState({});
+  const [search, setSearch] = useState("");
+  const [genderFilter, setGenderFilter] = useState("all");
+  const [onlineUsers, setOnlineUsers] = useState([]);
 
   useEffect(() => {
     async function loadUsers() {
-      const token =
-  localStorage.getItem("token") ||
-  sessionStorage.getItem("token");
+      const token = sessionStorage.getItem("token");
 
       if (!token) {
         setLoadingUsers(false);
@@ -38,88 +29,56 @@ function useUsers({
           `${apiUrl}/auth/users`,
           {
             headers: {
-              Authorization:
-                `Bearer ${token}`,
+              Authorization: `Bearer ${token}`,
             },
           }
         );
 
-        const data =
-          await response.json();
+        const data = await response.json();
 
         if (!response.ok) {
           throw new Error(
-            data.message ||
-              "Could not load users."
+            data.message || "Could not load users."
           );
         }
 
-        const loggedInUserId =
-          String(
-            currentUserId ||
-              currentUser?.id ||
-              currentUser?._id ||
-              ""
-          );
-
-        const loadedUsers =
-          (data.users || [])
-            .map((user) => {
-              const userId =
-                String(
-                  user.id ||
-                    user._id
-                );
-
-              return {
-                ...user,
-
-                id: userId,
-
-                online:
-                  onlineUsers.includes(
-                    userId
-                  ),
-
-                initial:
-                  user.initial ||
-                  user.name
-                    ?.charAt(0)
-                    .toUpperCase() ||
-                  user.username
-                    ?.charAt(0)
-                    .toUpperCase() ||
-                  "U",
-
-                lastMessage:
-                  user.lastMessage ||
-                  "",
-
-                time:
-                  user.time || "",
-              };
-            })
-            .filter(
-              (user) =>
-                user.id !==
-                loggedInUserId
-            );
-
-        setUsers(
-          loadedUsers
+        const loggedInUserId = String(
+          currentUserId ||
+            currentUser?.id ||
+            currentUser?._id ||
+            ""
         );
 
-        /*
-          IMPORTANT:
-          Pehle automatically first user
-          select ho raha tha.
+        const loadedUsers = (data.users || [])
+          .map((user) => {
+            const userId = String(
+              user.id || user._id
+            );
 
-          Ab nahi hoga.
-          User khud jis user par click
-          karega wahi chat open hogi.
-        */
+            return {
+              ...user,
+              id: userId,
+              online: false,
+              initial:
+                user.initial ||
+                user.name
+                  ?.charAt(0)
+                  .toUpperCase() ||
+                user.username
+                  ?.charAt(0)
+                  .toUpperCase() ||
+                "U",
+              lastMessage:
+                user.lastMessage || "",
+              time: user.time || "",
+            };
+          })
+          .filter(
+            (user) =>
+              user.id !== loggedInUserId
+          );
 
-        setSelectedUser(null);
+        setUsers(loadedUsers);
       } catch (error) {
         console.error(
           "Load users error:",
@@ -137,86 +96,61 @@ function useUsers({
     currentUserId,
   ]);
 
-  /*
-    ONLINE USERS UPDATE
-  */
-
   useEffect(() => {
-    setUsers(
-      (previousUsers) =>
-        previousUsers.map(
-          (user) => {
-            const userId =
-              String(
-                user.id ||
-                  user._id
-              );
-
-            return {
-              ...user,
-
-              online:
-                onlineUsers.includes(
-                  userId
-                ),
-            };
-          }
-        )
-    );
-
-    setSelectedUser(
-      (previousSelected) => {
-        if (!previousSelected) {
-          return previousSelected;
-        }
-
-        const userId =
-          String(
-            previousSelected.id ||
-              previousSelected._id
-          );
+    setUsers((previousUsers) =>
+      previousUsers.map((user) => {
+        const userId = String(
+          user.id || user._id
+        );
 
         return {
-          ...previousSelected,
-
+          ...user,
           online:
-            onlineUsers.includes(
-              userId
-            ),
+            onlineUsers.includes(userId),
         };
-      }
+      })
     );
+
+    setSelectedUser((previousSelected) => {
+      if (!previousSelected) {
+        return previousSelected;
+      }
+
+      const userId = String(
+        previousSelected.id ||
+          previousSelected._id
+      );
+
+      return {
+        ...previousSelected,
+        online:
+          onlineUsers.includes(userId),
+      };
+    });
   }, [
     onlineUsers,
     setSelectedUser,
   ]);
 
-  /*
-    UNREAD COUNTS
-  */
-
   useEffect(() => {
     async function loadUnreadCounts() {
       const token =
-        sessionStorage.getItem(
-          "token"
-        );
+        sessionStorage.getItem("token");
 
       if (!token) {
         return;
       }
 
       try {
-        const response =
-          await fetch(
-            `${apiUrl}/messages/unread/counts`,
-            {
-              headers: {
-                Authorization:
-                  `Bearer ${token}`,
-              },
-            }
-          );
+        const response = await fetch(
+          `${apiUrl}/messages/unread/counts`,
+          {
+            headers: {
+              Authorization:
+                `Bearer ${token}`,
+            },
+          }
+        );
 
         const data =
           await response.json();
@@ -237,44 +171,58 @@ function useUsers({
     loadUnreadCounts();
   }, [apiUrl]);
 
-  /*
-    FILTER
-  */
+  const interestKey = (
+    Array.isArray(myInterests) ? myInterests : []
+  ).join("|");
 
-  const filteredUsers =
-    useMemo(() => {
-      const query =
-        search
-          .toLowerCase()
-          .trim();
+  const filteredUsers = useMemo(() => {
+    const query =
+      search.toLowerCase().trim();
+    const mine = interestKey
+      ? interestKey.split("|")
+      : [];
 
-      return users.filter(
-        (user) => {
-          const matchesSearch =
-            user.name
-              ?.toLowerCase()
-              .includes(query) ||
-            user.username
-              ?.toLowerCase()
-              .includes(query);
+    return users
+      .filter((user) => {
+        const matchesSearch =
+          user.name
+            ?.toLowerCase()
+            .includes(query) ||
+          user.username
+            ?.toLowerCase()
+            .includes(query);
 
-          const matchesGender =
-            genderFilter ===
-              "all" ||
-            user.gender ===
-              genderFilter;
+        const matchesGender =
+          genderFilter === "all" ||
+          user.gender === genderFilter;
 
-          return (
-            matchesSearch &&
-            matchesGender
-          );
+        return (
+          matchesSearch &&
+          matchesGender
+        );
+      })
+      .map((user) => ({
+        ...user,
+        matchPercent: matchPercent(
+          mine,
+          user.interests || []
+        ),
+      }))
+      .sort((left, right) => {
+        if (right.matchPercent !== left.matchPercent) {
+          return right.matchPercent - left.matchPercent;
         }
-      );
-    }, [
-      users,
-      search,
-      genderFilter,
-    ]);
+
+        return (left.username || "").localeCompare(
+          right.username || ""
+        );
+      });
+  }, [
+    users,
+    search,
+    genderFilter,
+    interestKey,
+  ]);
 
   return {
     users,

@@ -1,3 +1,6 @@
+import { useState } from "react";
+import InterestPicker from "./InterestPicker";
+
 function ProfileModal({
   showProfile,
   closeProfile,
@@ -6,13 +9,34 @@ function ProfileModal({
   profileUsername,
   setProfileUsername,
   profilePhoto,
+  profileInterests,
+  setProfileInterests,
   handleProfilePhoto,
   profileSaving,
+  deletingAccount,
   profileError,
   saveProfile,
+  deleteAccount,
 }) {
+  const [confirmingDelete, setConfirmingDelete] =
+    useState(false);
+  const [deletePassword, setDeletePassword] =
+    useState("");
+
+  const busy = profileSaving || deletingAccount;
   if (!showProfile) {
     return null;
+  }
+
+  async function handleDeleteAccount() {
+    const deleted = await deleteAccount(
+      deletePassword
+    );
+
+    if (deleted) {
+      setDeletePassword("");
+      setConfirmingDelete(false);
+    }
   }
 
   return (
@@ -28,7 +52,7 @@ function ProfileModal({
             className="jsx-style-17"
             type="button"
             onClick={closeProfile}
-            disabled={profileSaving}
+            disabled={busy}
           >
             ×
           </button>
@@ -77,7 +101,7 @@ function ProfileModal({
           onChange={(event) =>
             setProfileName(event.target.value)
           }
-          disabled={profileSaving}
+          disabled={busy}
           maxLength={50}
         />
 
@@ -92,13 +116,28 @@ function ProfileModal({
           onChange={(event) =>
             setProfileUsername(event.target.value)
           }
-          disabled={profileSaving}
+          disabled={busy}
           maxLength={30}
         />
 
         <p className="jsx-style-28">
           Only letters, numbers, underscore and dot.
         </p>
+
+        <label className="jsx-style-26">
+          Interests
+        </label>
+
+        <p className="jsx-style-28 interest-help">
+          People who share more of these appear
+          higher in your chat list.
+        </p>
+
+        <InterestPicker
+          selected={profileInterests || []}
+          onChange={setProfileInterests}
+          disabled={busy}
+        />
 
         {profileError && (
           <p className="jsx-style-29">
@@ -111,7 +150,7 @@ function ProfileModal({
             className="jsx-style-31"
             type="button"
             onClick={closeProfile}
-            disabled={profileSaving}
+            disabled={busy}
           >
             Cancel
           </button>
@@ -119,13 +158,74 @@ function ProfileModal({
           <button
             type="button"
             onClick={saveProfile}
-            disabled={profileSaving}
+            disabled={busy}
             className="primary-btn jsx-style-32"
           >
             {profileSaving
               ? "Saving..."
               : "Save Changes"}
           </button>
+        </div>
+
+        <div className="account-delete">
+          <p>
+            Delete your ID permanently. Chats,
+            status, and feed posts are removed
+            and cannot be restored.
+          </p>
+
+          {confirmingDelete ? (
+            <div className="account-delete-panel">
+              <input
+                type="password"
+                value={deletePassword}
+                onChange={(event) =>
+                  setDeletePassword(event.target.value)
+                }
+                placeholder="Enter your password"
+                autoComplete="current-password"
+                disabled={busy}
+                aria-label="Password to delete account"
+              />
+
+              <div className="account-delete-actions">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmingDelete(false);
+                    setDeletePassword("");
+                  }}
+                  disabled={busy}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  className="account-delete-confirm"
+                  onClick={handleDeleteAccount}
+                  disabled={
+                    busy || !deletePassword
+                  }
+                >
+                  {deletingAccount
+                    ? "Deleting..."
+                    : "Delete forever"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="account-delete-btn"
+              onClick={() =>
+                setConfirmingDelete(true)
+              }
+              disabled={busy}
+            >
+              Delete account permanently
+            </button>
+          )}
         </div>
       </div>
     </div>

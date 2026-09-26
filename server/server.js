@@ -1,6 +1,7 @@
 const path = require("path");
 const dns = require("dns");
 const postRoutes = require("./routes/postRoutes");
+const feedRoutes = require("./routes/feedRoutes");
 
 const dnsServers = ["1.1.1.1", "8.8.8.8"];
 
@@ -82,14 +83,14 @@ app.use(
 
 app.use(
   express.json({
-    limit: "10mb",
+    limit: "15mb",
   })
 );
 
 app.use(
   express.urlencoded({
     extended: true,
-    limit: "10mb",
+    limit: "15mb",
   })
 );
 
@@ -118,6 +119,10 @@ const io = new Server(server, {
 
 const User = require("./models/user");
 const Message = require("./models/Message");
+const {
+  EVERYONE_ROOM,
+} = require("./constants/group");
+const Post = require("./models/Post");
 
 /* =====================================================
    BASIC ROUTE
@@ -134,9 +139,12 @@ app.get("/", (req, res) => {
    API ROUTES
 ===================================================== */
 
+app.set("io", io);
+
 app.use("/api/auth", authRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/posts", postRoutes);
+app.use("/api/feed", feedRoutes);
 
 /* =====================================================
    JWT CHECK FOR SOCKET.IO
@@ -187,27 +195,14 @@ io.use(async (socket, next) => {
 ===================================================== */
 
 /*
-  Map:
-
-  userId -> {
-    socketId,
-    showOnline
-  }
+  userId -> active socket id
+  Connected users are always shown as online.
 */
 
 const onlineUsers = new Map();
 
-/* =====================================================
-   GET PUBLIC ONLINE USER IDS
-===================================================== */
-
 function getPublicOnlineUsers() {
-  return Array.from(onlineUsers.entries())
-    .filter(
-      ([userId, data]) =>
-        data.showOnline === true
-    )
-    .map(([userId]) => String(userId));
+  return Array.from(onlineUsers.keys()).map(String);
 }
 
 /* =====================================================
@@ -239,19 +234,17 @@ io.on("connection", (socket) => {
      JOIN
   =================================================== */
 
-  socket.on("join", ({ showOnline = true } = {}) => {
+  socket.on("join", () => {
     const userId = String(socket.userId);
 
-    onlineUsers.set(userId, {
-      socketId: socket.id,
-      showOnline: Boolean(showOnline),
-    });
+    onlineUsers.set(userId, socket.id);
 
     /*
       Put user in personal room.
     */
 
     socket.join(`user_${userId}`);
+    socket.join(EVERYONE_ROOM);
 
     /*
       Send current presence snapshot
@@ -268,41 +261,8 @@ io.on("connection", (socket) => {
 
     broadcastPresence();
 
-    console.log(
-      "User joined:",
-      userId,
-      "Visible:",
-      Boolean(showOnline)
-    );
+    console.log("User joined:", userId);
   });
-
-  /* ===================================================
-     SET PRESENCE
-  =================================================== */
-
-  socket.on(
-    "setPresence",
-    ({ showOnline = true } = {}) => {
-      const userId = String(socket.userId);
-
-      const existing =
-        onlineUsers.get(userId);
-
-      onlineUsers.set(userId, {
-        socketId: socket.id,
-        showOnline: Boolean(showOnline),
-      });
-
-      console.log(
-        "Presence changed:",
-        userId,
-        "Visible:",
-        Boolean(showOnline)
-      );
-
-      broadcastPresence();
-    }
-  );
 
   /* ===================================================
      TYPING
@@ -407,10 +367,7 @@ io.on("connection", (socket) => {
       is still the active socket.
     */
 
-    if (
-      existing &&
-      existing.socketId === socket.id
-    ) {
+    if (existing === socket.id) {
       onlineUsers.delete(userId);
     }
 
@@ -455,11 +412,71 @@ console.log(
     : "NO"
 );
 
+async function cleanupExpiredFeedPosts() {
+  try {
+    const oldestAllowed = new Date(
+      Date.now() - Post.STATUS_TTL_MS
+    );
+
+    const result = await Post.deleteMany({
+      $or: [
+        { expiresAt: { $lte: new Date() } },
+        { createdAt: { $lte: oldestAllowed } },
+      ],
+    });
+
+    if (result.deletedCount > 0) {
+      console.log(
+        `Auto-deleted ${result.deletedCount} expired status update(s).`
+      );
+    }
+
+    /*
+      Backfill older posts that were created
+      before expiresAt existed (24 hours from createdAt).
+    */
+    const postsMissingExpiry = await Post.find({
+      $or: [
+        { expiresAt: { $exists: false } },
+        { expiresAt: null },
+      ],
+    }).select("_id createdAt");
+
+    for (const post of postsMissingExpiry) {
+      const expiresAt = Post.getDefaultExpiresAt(
+        post.createdAt || new Date()
+      );
+
+      if (expiresAt <= new Date()) {
+        await Post.findByIdAndDelete(post._id);
+      } else {
+        await Post.updateOne(
+          { _id: post._id },
+          { $set: { expiresAt } }
+        );
+      }
+    }
+  } catch (error) {
+    console.error(
+      "Feed auto-delete cleanup error:",
+      error.message
+    );
+  }
+}
+
 mongoose
   .connect(MONGO_URI)
-  .then(() => {
+  .then(async () => {
     console.log(
       "MongoDB connected successfully!"
+    );
+
+    await cleanupExpiredFeedPosts();
+
+    /* Run every hour so expired statuses are removed. */
+    setInterval(
+      cleanupExpiredFeedPosts,
+      60 * 60 * 1000
     );
 
     /* ===============================================

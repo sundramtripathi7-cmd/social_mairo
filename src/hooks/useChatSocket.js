@@ -1,16 +1,10 @@
-import {
-  useEffect,
-  useRef,
-} from "react";
-
-import {
-  io,
-} from "socket.io-client";
+import { useEffect, useRef } from "react";
+import { io } from "socket.io-client";
+import { EVERYONE_GROUP_ID } from "../constants/group";
 
 function useChatSocket({
   socketUrl,
   currentUserId,
-  currentUser,
   users,
   selectedUserRef,
   markConversationAsRead,
@@ -18,102 +12,48 @@ function useChatSocket({
   setUnreadCounts,
   setUsers,
   setOnlineUsers,
+  setSelectedUser,
   setTypingUserId,
   socketRef,
 }) {
-  const usersRef =
-    useRef(users);
-
-  const markReadRef =
-    useRef(
-      markConversationAsRead
-    );
-
-  /* =====================================================
-     KEEP USERS REF UPDATED
-  ===================================================== */
+  const usersRef = useRef(users);
+  const markReadRef = useRef(
+    markConversationAsRead
+  );
 
   useEffect(() => {
-    usersRef.current =
-      users;
+    usersRef.current = users;
   }, [users]);
-
-  /* =====================================================
-     KEEP MARK READ REF UPDATED
-  ===================================================== */
 
   useEffect(() => {
     markReadRef.current =
       markConversationAsRead;
-  }, [
-    markConversationAsRead,
-  ]);
-
-  /* =====================================================
-     SOCKET CONNECTION
-  ===================================================== */
+  }, [markConversationAsRead]);
 
   useEffect(() => {
     const token =
-      localStorage.getItem(
-        "token"
-      );
+      sessionStorage.getItem("token");
 
-    if (
-      !token ||
-      !currentUserId
-    ) {
+    if (!token || !currentUserId) {
       return;
     }
 
-    const socket = io(
-      socketUrl,
-      {
-        auth: {
-          token,
-        },
-      }
-    );
+    const socket = io(socketUrl, {
+      auth: {
+        token,
+      },
+    });
 
-    socketRef.current =
-      socket;
+    socketRef.current = socket;
 
-    /* =================================================
-       CONNECT
-    ================================================= */
+    socket.on("connect", () => {
+      console.log(
+        "Socket connected:",
+        socket.id
+      );
 
-    socket.on(
-      "connect",
-      () => {
-        console.log(
-          "Socket connected:",
-          socket.id
-        );
-
-        const userId =
-          currentUser?.id ||
-          currentUser?._id;
-
-        const saved =
-          userId
-            ? localStorage.getItem(
-                `showOnline_${userId}`
-              )
-            : null;
-
-        socket.emit(
-          "join",
-          {
-            showOnline:
-              saved !== "false",
-          }
-        );
-      }
-    );
-
-    /* =================================================
-       CONNECT ERROR
-    ================================================= */
+      socket.emit("join");
+    });
 
     socket.on(
       "connect_error",
@@ -125,111 +65,103 @@ function useChatSocket({
       }
     );
 
-    /* =================================================
-       PRESENCE SNAPSHOT
-    ================================================= */
-
     socket.on(
       "presenceSnapshot",
-      ({
-        onlineUsers:
-          list = [],
-      }) => {
+      ({ onlineUsers: list = [] }) => {
         setOnlineUsers(
           list.map(String)
         );
       }
     );
-
-    /* =================================================
-       PRESENCE UPDATE
-    ================================================= */
 
     socket.on(
       "presenceUpdate",
-      ({
-        onlineUsers:
-          list = [],
-      }) => {
+      ({ onlineUsers: list = [] }) => {
         setOnlineUsers(
           list.map(String)
         );
       }
     );
 
-    /* =================================================
-       NEW MESSAGE
-    ================================================= */
+    socket.on("userDeleted", ({ userId }) => {
+      const deletedId = String(userId || "");
+
+      if (!deletedId) {
+        return;
+      }
+
+      setUsers((previousUsers) =>
+        previousUsers.filter((user) => {
+          return (
+            String(user.id || user._id) !==
+            deletedId
+          );
+        })
+      );
+
+      setOnlineUsers((previous) =>
+        previous.filter((id) => id !== deletedId)
+      );
+
+      const selected = selectedUserRef.current;
+
+      if (
+        selected &&
+        String(selected.id || selected._id) ===
+          deletedId
+      ) {
+        selectedUserRef.current = null;
+        setSelectedUser?.(null);
+      }
+    });
 
     socket.on(
       "newMessage",
       (newMessage) => {
-        const senderId =
-          String(
-            newMessage.sender
-          );
+        const senderId = String(
+          newMessage.sender
+        );
 
-        const messageId =
-          String(
-            newMessage.id ||
-              newMessage._id
-          );
+        const messageId = String(
+          newMessage.id ||
+            newMessage._id
+        );
 
-        const formattedMessage =
-          {
-            id: messageId,
-
-            text:
-              newMessage.text,
-
-            type: "received",
-
-            time:
-              newMessage.time ||
-              new Date(
-                newMessage.createdAt
-              ).toLocaleTimeString(
-                [],
-                {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                }
-              ),
-
-            createdAt:
-              newMessage.createdAt,
-
-            read: Boolean(
-              newMessage.read
-            ),
-          };
+        const formattedMessage = {
+          id: messageId,
+          text: newMessage.text,
+          type: "received",
+          time:
+            newMessage.time ||
+            new Date(
+              newMessage.createdAt
+            ).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+          createdAt:
+            newMessage.createdAt,
+          read: Boolean(
+            newMessage.read
+          ),
+        };
 
         const selected =
           selectedUserRef.current;
 
-        const selectedId =
-          String(
-            selected?.id ||
-              selected?._id ||
-              ""
-          );
+        const selectedId = String(
+          selected?.id ||
+            selected?._id ||
+            ""
+        );
 
-        /* =============================================
-           CURRENT CHAT OPEN
-        ============================================= */
-
-        if (
-          senderId ===
-          selectedId
-        ) {
+        if (senderId === selectedId) {
           setMessages(
             (previous) => {
               const exists =
                 previous.some(
                   (msg) =>
-                    String(
-                      msg.id
-                    ) ===
+                    String(msg.id) ===
                     messageId
                 );
 
@@ -251,15 +183,10 @@ function useChatSocket({
           return;
         }
 
-        /* =============================================
-           BROWSER NOTIFICATION
-        ============================================= */
-
         if (
           typeof window !==
             "undefined" &&
-          "Notification" in
-            window &&
+          "Notification" in window &&
           Notification.permission ===
             "granted" &&
           typeof document !==
@@ -273,8 +200,7 @@ function useChatSocket({
                 String(
                   user.id ||
                     user._id
-                ) ===
-                senderId
+                ) === senderId
             );
 
           try {
@@ -285,13 +211,10 @@ function useChatSocket({
               {
                 body:
                   newMessage.text,
-
                 icon:
                   sender?.photo ||
                   undefined,
-
-                tag:
-                  `message-${senderId}`,
+                tag: `message-${senderId}`,
               }
             );
           } catch (error) {
@@ -302,24 +225,14 @@ function useChatSocket({
           }
         }
 
-        /* =============================================
-           UNREAD COUNT
-        ============================================= */
-
         setUnreadCounts(
           (previous) => ({
             ...previous,
-
             [senderId]:
-              (previous[
-                senderId
-              ] || 0) + 1,
+              (previous[senderId] ||
+                0) + 1,
           })
         );
-
-        /* =============================================
-           UPDATE USER LAST MESSAGE
-        ============================================= */
 
         setUsers(
           (previousUsers) =>
@@ -340,10 +253,8 @@ function useChatSocket({
 
                 return {
                   ...user,
-
                   lastMessage:
                     newMessage.text,
-
                   time:
                     newMessage.time ||
                     new Date(
@@ -352,7 +263,8 @@ function useChatSocket({
                       [],
                       {
                         hour: "2-digit",
-                        minute: "2-digit",
+                        minute:
+                          "2-digit",
                       }
                     ),
                 };
@@ -362,9 +274,64 @@ function useChatSocket({
       }
     );
 
-    /* =================================================
-       MESSAGE DELETED
-    ================================================= */
+    socket.on("groupMessage", (incoming) => {
+      const senderId = String(incoming.sender || "");
+      const messageId = String(
+        incoming.id || incoming._id
+      );
+      const isOwn = senderId === String(currentUserId);
+
+      const formattedMessage = {
+        id: messageId,
+        text: incoming.text,
+        type: isOwn ? "sent" : "received",
+        time:
+          incoming.time ||
+          new Date(incoming.createdAt).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        createdAt: incoming.createdAt,
+        senderUsername: incoming.senderUsername || "",
+        senderPhoto: incoming.senderPhoto || "",
+        group: EVERYONE_GROUP_ID,
+      };
+
+      const selected = selectedUserRef.current;
+      const selectedId = String(
+        selected?.id || selected?._id || ""
+      );
+
+      if (selectedId === EVERYONE_GROUP_ID) {
+        setMessages((previous) => {
+          const exists = previous.some(
+            (msg) => String(msg.id) === messageId
+          );
+
+          if (exists) {
+            return previous;
+          }
+
+          return [...previous, formattedMessage];
+        });
+
+        if (!isOwn) {
+          markReadRef.current(EVERYONE_GROUP_ID);
+        }
+
+        return;
+      }
+
+      if (isOwn) {
+        return;
+      }
+
+      setUnreadCounts((previous) => ({
+        ...previous,
+        [EVERYONE_GROUP_ID]:
+          (previous[EVERYONE_GROUP_ID] || 0) + 1,
+      }));
+    });
 
     socket.on(
       "messageDeleted",
@@ -380,16 +347,9 @@ function useChatSocket({
       }
     );
 
-    /* =================================================
-       TYPING
-    ================================================= */
-
     socket.on(
       "userTyping",
-      ({
-        userId,
-        isTyping,
-      }) => {
+      ({ userId, isTyping }) => {
         const typingId =
           String(userId);
 
@@ -418,10 +378,6 @@ function useChatSocket({
       }
     );
 
-    /* =================================================
-       READ RECEIPTS
-    ================================================= */
-
     socket.on(
       "messagesRead",
       ({ userId }) => {
@@ -449,8 +405,7 @@ function useChatSocket({
           (previous) =>
             previous.map(
               (msg) =>
-                msg.type ===
-                "sent"
+                msg.type === "sent"
                   ? {
                       ...msg,
                       read: true,
@@ -461,10 +416,6 @@ function useChatSocket({
       }
     );
 
-    /* =================================================
-       DISCONNECT
-    ================================================= */
-
     socket.on(
       "disconnect",
       () => {
@@ -474,15 +425,9 @@ function useChatSocket({
       }
     );
 
-    /* =================================================
-       CLEANUP
-    ================================================= */
-
     return () => {
       socket.disconnect();
-
-      socketRef.current =
-        null;
+      socketRef.current = null;
     };
   }, [
     socketUrl,
