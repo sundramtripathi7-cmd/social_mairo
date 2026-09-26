@@ -1,5 +1,6 @@
 import { useState } from "react";
 import InterestPicker from "./InterestPicker";
+import PhonePhotoButton from "../PhonePhotoButton";
 
 function ProfileModal({
   showProfile,
@@ -59,9 +60,10 @@ function ProfileModal({
         </div>
 
         <div className="jsx-style-18">
-          <label
+          <PhonePhotoButton
             className="jsx-style-19"
-            title="Change profile photo"
+            disabled={busy}
+            onFile={handleProfilePhoto}
           >
             {profilePhoto ? (
               <img
@@ -76,14 +78,7 @@ function ProfileModal({
                   : "U"}
               </span>
             )}
-
-            <input
-              className="jsx-style-22"
-              type="file"
-              accept="image/*"
-              onChange={handleProfilePhoto}
-            />
-          </label>
+          </PhonePhotoButton>
 
           <p className="jsx-style-23">
             Click photo to change

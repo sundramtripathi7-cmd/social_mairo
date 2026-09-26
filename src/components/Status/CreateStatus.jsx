@@ -1,71 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import PhonePhotoButton, {
+  compressPhotoFile,
+} from "../PhonePhotoButton";
 
 import {
   STATUS_BACKGROUNDS,
   statusFontSize,
 } from "./statusUtils";
-
-const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
-const MAX_IMAGE_WIDTH = 1280;
-const JPEG_QUALITY = 0.78;
-
-function compressImageFile(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.onerror = () => {
-      reject(new Error("Could not read image file."));
-    };
-
-    reader.onload = () => {
-      const img = new Image();
-
-      img.onerror = () => {
-        reject(new Error("Could not load image."));
-      };
-
-      img.onload = () => {
-        const scale = Math.min(
-          1,
-          MAX_IMAGE_WIDTH / img.width
-        );
-
-        const width = Math.max(
-          1,
-          Math.round(img.width * scale)
-        );
-
-        const height = Math.max(
-          1,
-          Math.round(img.height * scale)
-        );
-
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-
-        const context = canvas.getContext("2d");
-
-        if (!context) {
-          reject(new Error("Could not process image."));
-          return;
-        }
-
-        context.drawImage(img, 0, 0, width, height);
-
-        const outputType = "image/jpeg";
-
-        resolve(
-          canvas.toDataURL(outputType, JPEG_QUALITY)
-        );
-      };
-
-      img.src = reader.result;
-    };
-
-    reader.readAsDataURL(file);
-  });
-}
 
 function CreateStatus({
   onClose,
@@ -81,7 +22,6 @@ function CreateStatus({
   const [imageError, setImageError] = useState("");
   const [compressing, setCompressing] = useState(false);
 
-  const fileInputRef = useRef(null);
   const textRef = useRef(null);
 
   const busy = creating || compressing;
@@ -104,36 +44,12 @@ function CreateStatus({
     textRef.current?.focus();
   }, []);
 
-  async function handleImageChange(event) {
-    const file = event.target.files?.[0];
-
+  async function handlePhotoFile(file) {
     setImageError("");
-
-    if (!file) {
-      return;
-    }
-
-    if (!file.type.startsWith("image/") &&
-      !/\.(jpe?g|png|gif|webp|heic|heif|bmp|avif)$/i.test(
-        file.name || ""
-      )
-    ) {
-      setImageError("Please select an image file.");
-      event.target.value = "";
-      return;
-    }
-
-    if (file.size > MAX_UPLOAD_BYTES) {
-      setImageError("Image must be smaller than 20 MB.");
-      event.target.value = "";
-      return;
-    }
 
     try {
       setCompressing(true);
-
-      const dataUrl = await compressImageFile(file);
-
+      const dataUrl = await compressPhotoFile(file);
       setImage(dataUrl);
     } catch (error) {
       console.error("Image compress error:", error);
@@ -141,7 +57,6 @@ function CreateStatus({
         error.message || "Could not process image."
       );
       setImage("");
-      event.target.value = "";
     } finally {
       setCompressing(false);
     }
@@ -150,10 +65,6 @@ function CreateStatus({
   function removeImage() {
     setImage("");
     setImageError("");
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
   }
 
   async function handleSubmit(event) {
@@ -277,21 +188,13 @@ function CreateStatus({
         )}
 
         <div className="status-composer-tools">
-          <label
-            className={`status-tool-btn ${
-              busy ? "is-disabled" : ""
-            }`}
+          <PhonePhotoButton
+            className="status-tool-btn"
+            disabled={busy}
+            onFile={handlePhotoFile}
           >
             {compressing ? "Loading photo..." : "Photo"}
-            <input
-              ref={fileInputRef}
-              className="photo-pick-input"
-              type="file"
-              accept="image/*"
-              onChange={handleImageChange}
-              disabled={busy}
-            />
-          </label>
+          </PhonePhotoButton>
 
           <span>Disappears after 24 hours</span>
         </div>
